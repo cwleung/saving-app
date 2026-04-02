@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
+import { useAppStore } from './store/useAppStore';
 import { LockScreen } from './components/LockScreen';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
@@ -10,12 +11,33 @@ import { AddTransaction } from './components/AddTransaction';
 type Tab = 'Dashboard' | 'Transactions' | 'Goals';
 
 function App() {
-  const { authenticated, hasPassword, setup, login, logout } = useAuth();
+  const { user, loading, authenticated, setup, login, logout } = useAuth();
+  const setUid = useAppStore((s) => s.setUid);
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
   const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+
+  useEffect(() => {
+    setUid(user?.uid ?? null);
+  }, [user, setUid]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-teal-800 to-cyan-900 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!authenticated) {
-    return <LockScreen hasPassword={hasPassword} onSetup={setup} onLogin={login} />;
+    return (
+      <LockScreen
+        mode={mode}
+        onSwitchMode={() => setMode(mode === 'login' ? 'register' : 'login')}
+        onRegister={setup}
+        onLogin={login}
+      />
+    );
   }
 
   return (

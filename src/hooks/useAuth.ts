@@ -1,38 +1,41 @@
-import { useState } from 'react';
-
-const HASH_KEY = 'saving-app-pw-hash';
-
-async function sha256(message: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
+import { useState, useEffect } from 'react';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  type User,
+} from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 export function useAuth() {
-  const [authenticated, setAuthenticated] = useState(false);
-  const hasPassword = Boolean(localStorage.getItem(HASH_KEY));
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  async function setup(password: string): Promise<void> {
-    const hash = await sha256(password);
-    localStorage.setItem(HASH_KEY, hash);
-    setAuthenticated(true);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  async function setup(email: string, password: string): Promise<void> {
+    await createUserWithEmailAndPassword(auth, email, password);
   }
 
-  async function login(password: string): Promise<boolean> {
-    const stored = localStorage.getItem(HASH_KEY);
-    if (!stored) return false;
-    const hash = await sha256(password);
-    if (hash === stored) {
-      setAuthenticated(true);
+  async function login(email: string, password: string): Promise<boolean> {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }
 
-  function logout() {
-    setAuthenticated(false);
+  async function logout(): Promise<void> {
+    await firebaseSignOut(auth);
   }
 
-  return { authenticated, hasPassword, setup, login, logout };
+  return { user, loading, authenticated: !!user, setup, login, logout };
 }

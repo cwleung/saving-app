@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 
 interface LockScreenProps {
-  hasPassword: boolean;
-  onSetup: (password: string) => Promise<void>;
-  onLogin: (password: string) => Promise<boolean>;
+  mode: 'login' | 'register';
+  onSwitchMode: () => void;
+  onRegister: (email: string, password: string) => Promise<void>;
+  onLogin: (email: string, password: string) => Promise<boolean>;
 }
 
-export function LockScreen({ hasPassword, onSetup, onLogin }: LockScreenProps) {
+export function LockScreen({ mode, onSwitchMode, onRegister, onLogin }: LockScreenProps) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,7 +21,7 @@ export function LockScreen({ hasPassword, onSetup, onLogin }: LockScreenProps) {
     setError('');
     setLoading(true);
     try {
-      if (!hasPassword) {
+      if (mode === 'register') {
         if (password.length < 6) {
           setError('Password must be at least 6 characters');
           return;
@@ -28,11 +30,14 @@ export function LockScreen({ hasPassword, onSetup, onLogin }: LockScreenProps) {
           setError('Passwords do not match');
           return;
         }
-        await onSetup(password);
+        await onRegister(email, password);
       } else {
-        const ok = await onLogin(password);
-        if (!ok) setError('Incorrect password');
+        const ok = await onLogin(email, password);
+        if (!ok) setError('Incorrect email or password');
       }
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message.replace('Firebase: ', '').replace(/ \(auth\/.*\)\.$/, ''));
+      else setError('An error occurred');
     } finally {
       setLoading(false);
     }
@@ -47,13 +52,20 @@ export function LockScreen({ hasPassword, onSetup, onLogin }: LockScreenProps) {
           </div>
           <h1 className="text-2xl font-bold text-white">Savings Tracker</h1>
           <p className="text-white/60 mt-1 text-sm text-center">
-            {hasPassword
-              ? 'Enter your password to continue'
-              : 'Create a password to get started'}
+            {mode === 'login' ? 'Sign in to your account' : 'Create your account'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email address"
+            required
+            className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+          />
+
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
@@ -72,7 +84,7 @@ export function LockScreen({ hasPassword, onSetup, onLogin }: LockScreenProps) {
             </button>
           </div>
 
-          {!hasPassword && (
+          {mode === 'register' && (
             <input
               type={showPassword ? 'text' : 'password'}
               value={confirm}
@@ -90,9 +102,19 @@ export function LockScreen({ hasPassword, onSetup, onLogin }: LockScreenProps) {
             disabled={loading}
             className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-white font-semibold rounded-xl py-3 transition-colors cursor-pointer"
           >
-            {loading ? 'Please wait…' : hasPassword ? 'Unlock' : 'Create Password'}
+            {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+
+        <p className="text-center text-white/50 text-sm mt-6">
+          {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+          <button
+            onClick={onSwitchMode}
+            className="text-emerald-400 hover:text-emerald-300 font-medium cursor-pointer"
+          >
+            {mode === 'login' ? 'Register' : 'Sign In'}
+          </button>
+        </p>
       </div>
     </div>
   );
