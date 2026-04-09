@@ -1,4 +1,6 @@
 import { LogOut, TrendingUp, LayoutDashboard, List, Target, RepeatIcon, Clock, ScrollText } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
+import { CURRENCIES } from '../lib/currency';
 
 export type Tab = 'Dashboard' | 'Transactions' | 'Goals' | 'Regular' | 'Upcoming' | 'Changelog';
 
@@ -21,6 +23,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 const BOTTOM_TABS: Tab[] = ['Dashboard', 'Transactions', 'Goals', 'Regular', 'Upcoming'];
 
 export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
+  const { currency, setCurrency } = useAppStore((s) => ({ currency: s.currency, setCurrency: s.setCurrency }));
   return (
     <>
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
@@ -61,6 +64,19 @@ export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
               >
                 <ScrollText className="w-4 h-4" />
               </button>
+              {/* Currency picker */}
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
+                title="Select currency"
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.symbol} {c.code}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={onLogout}
                 className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm cursor-pointer"

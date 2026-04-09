@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { useCurrency } from '../hooks/useCurrency';
 import type { Transaction, TransactionType } from '../types';
 
 const CATEGORIES: Record<TransactionType, string[]> = {
@@ -34,6 +35,7 @@ interface AddTransactionProps {
 
 export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
   const { addTransaction, updateTransaction } = useAppStore();
+  const { currency } = useCurrency();
   const isEdit = !!initialData;
 
   const [type, setType] = useState<TransactionType>(initialData?.type ?? 'expense');
@@ -105,7 +107,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Amount ($)</label>
+            <label className="block text-sm text-gray-600 mb-1">Amount ({currency})</label>
             <input
               type="number"
               min="0.01"

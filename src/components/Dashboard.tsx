@@ -13,31 +13,43 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, Calendar, RepeatIcon, Clock } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { useCurrency } from '../hooks/useCurrency';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-  }).format(n);
+type TimeSpan = '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 
-const fmtShort = (n: number) => {
-  if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
-};
-
-type TimeSpan = '1M' | '3M' | '6M' | '1Y' | 'ALL';
-
-interface DashboardProps {
-  onAddTransaction: () => void;
+// ── Bucket key helpers ────────────────────────────────────────────────
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function Dashboard({ onAddTransaction }: DashboardProps) {
-  const { transactions, goals } = useAppStore();
+function weekStartIso(d: Date): string {
+  const copy = new Date(d);
+  const dow = copy.getDay();
+  copy.setDate(copy.getDate() - (dow === 0 ? 6 : dow - 1));
+  return isoDate(copy);
+}
+
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function dayLabel(isoStr: string): string {
+  const [y, m, day] = isoStr.split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function monthLabel(keyStr: string): string {
+  const [y, m] = keyStr.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+}
+
+export function Dashboard() {
+  const { transactions, goals, regularSpendings, upcomingItems } = useAppStore();
+  const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
 
@@ -60,36 +72,81 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
     return total ? Math.round((current / total) * 100) : 0;
   }, [goals]);
 
-  // ── Chart data by time span ──────────────────────────────────────────
-  const chartData = useMemo(() => {
+  // ── Chart data – daily / weekly / monthly ────────────────────────────
+  const { chartData, chartTitle } = useMemo(() => {
     const now = new Date();
-    const spanToMonths: Record<TimeSpan, number> = { '1M': 1, '3M': 3, '6M': 6, '1Y': 12, ALL: 60 };
-    const months = spanToMonths[chartSpan];
+    now.setHours(0, 0, 0, 0);
+
+    const orderedKeys: string[] = [];
+    const labels: string[] = [];
+    const seen = new Set<string>();
+
+    if (chartSpan === '1W' || chartSpan === '1M') {
+      const days = chartSpan === '1W' ? 7 : 30;
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const k = isoDate(d);
+        orderedKeys.push(k);
+        labels.push(dayLabel(k));
+      }
+    } else if (chartSpan === '3M') {
+      for (let i = 12; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i * 7);
+        const k = weekStartIso(d);
+        if (!seen.has(k)) {
+          seen.add(k);
+          orderedKeys.push(k);
+          labels.push(dayLabel(k));
+        }
+      }
+    } else {
+      const months: Record<TimeSpan, number> = { '1W': 1, '1M': 1, '3M': 3, '6M': 6, '1Y': 12, ALL: 60 };
+      const count = months[chartSpan];
+      for (let i = count - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const k = monthKey(d);
+        orderedKeys.push(k);
+        labels.push(monthLabel(k));
+      }
+    }
 
     const buckets: Record<string, { income: number; expense: number }> = {};
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.toLocaleString('default', { month: 'short', year: '2-digit' });
-      buckets[key] = { income: 0, expense: 0 };
-    }
+    orderedKeys.forEach((k) => (buckets[k] = { income: 0, expense: 0 }));
 
     transactions.forEach((t) => {
       const d = new Date(t.date);
-      const key = d.toLocaleString('default', { month: 'short', year: '2-digit' });
-      if (key in buckets) {
-        if (t.type === 'income' || t.type === 'refund') buckets[key].income += t.amount;
-        else if (t.type === 'expense') buckets[key].expense += t.amount;
+      let k: string;
+      if (chartSpan === '1W' || chartSpan === '1M') k = isoDate(d);
+      else if (chartSpan === '3M') k = weekStartIso(d);
+      else k = monthKey(d);
+      if (k in buckets) {
+        if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
+        else if (t.type === 'expense') buckets[k].expense += t.amount;
       }
     });
-    return Object.entries(buckets).map(([name, v]) => ({ name, ...v }));
+
+    const spans: Record<TimeSpan, string> = {
+      '1W': 'Daily – Last 7 Days',
+      '1M': 'Daily – Last 30 Days',
+      '3M': 'Weekly – Last 3 Months',
+      '6M': 'Monthly – Last 6 Months',
+      '1Y': 'Monthly – Last Year',
+      ALL: 'Monthly – All Time',
+    };
+
+    return {
+      chartData: orderedKeys.map((k, i) => ({ name: labels[i], ...buckets[k] })),
+      chartTitle: spans[chartSpan],
+    };
   }, [transactions, chartSpan]);
 
   // ── Pie chart data by time span ──────────────────────────────────────
   const expenseByCategory = useMemo(() => {
     const now = new Date();
-    const spanToMonths: Record<TimeSpan, number> = { '1M': 1, '3M': 3, '6M': 6, '1Y': 12, ALL: 999 };
-    const months = spanToMonths[pieSpan];
-    const cutoff = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+    const spanToDays: Record<TimeSpan, number> = { '1W': 7, '1M': 30, '3M': 91, '6M': 183, '1Y': 365, ALL: 99999 };
+    const cutoff = new Date(now.getTime() - spanToDays[pieSpan] * 86_400_000);
 
     const cats: Record<string, number> = {};
     transactions
@@ -104,61 +161,74 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
 
   // ── Projections ──────────────────────────────────────────────────────
   const projections = useMemo(() => {
-    const last3Months = (() => {
-      const now = new Date();
-      const result = [0, 1, 2].map((i) => {
-        const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = month.toLocaleString('default', { month: 'short', year: '2-digit' });
-        return key;
-      });
-      return result;
-    })();
+    const now = new Date();
+    const last3Keys = [0, 1, 2].map((i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      return monthKey(d);
+    });
 
     let monthIncome = 0;
     let monthExpense = 0;
-    let txMonths = new Set<string>();
+    const txMonths = new Set<string>();
 
     transactions.forEach((t) => {
-      const d = new Date(t.date);
-      const key = d.toLocaleString('default', { month: 'short', year: '2-digit' });
-      txMonths.add(key);
-      if (last3Months.includes(key)) {
+      const k = monthKey(new Date(t.date));
+      txMonths.add(k);
+      if (last3Keys.includes(k)) {
         if (t.type === 'income' || t.type === 'refund') monthIncome += t.amount;
         else if (t.type === 'expense') monthExpense += t.amount;
       }
     });
 
-    const activeMonths = Math.min(last3Months.length, Math.max(txMonths.size, 1));
+    const activeMonths = Math.min(3, Math.max(txMonths.size, 1));
     const avgMonthlyIncome = monthIncome / activeMonths;
     const avgMonthlyExpense = monthExpense / activeMonths;
     const avgMonthlySavings = avgMonthlyIncome - avgMonthlyExpense;
     const annualSavings = avgMonthlySavings * 12;
     const savingsRate = avgMonthlyIncome > 0 ? (avgMonthlySavings / avgMonthlyIncome) * 100 : 0;
 
-    // Spending trend: compare last month vs previous month
-    const now = new Date();
-    const lastMonthKey = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      .toLocaleString('default', { month: 'short', year: '2-digit' });
-    const prevMonthKey = new Date(now.getFullYear(), now.getMonth() - 2, 1)
-      .toLocaleString('default', { month: 'short', year: '2-digit' });
-
-    let lastMonthExp = 0;
-    let prevMonthExp = 0;
+    // Spending trend
+    const lastMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+    let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      const key = new Date(t.date).toLocaleString('default', { month: 'short', year: '2-digit' });
-      if (t.type === 'expense') {
-        if (key === lastMonthKey) lastMonthExp += t.amount;
-        if (key === prevMonthKey) prevMonthExp += t.amount;
-      }
+      if (t.type !== 'expense') return;
+      const k = monthKey(new Date(t.date));
+      if (k === lastMonthK) lastExp += t.amount;
+      if (k === prevMonthK) prevExp += t.amount;
     });
-    const spendingTrend = prevMonthExp > 0 ? ((lastMonthExp - prevMonthExp) / prevMonthExp) * 100 : 0;
+    const spendingTrend = prevExp > 0 ? ((lastExp - prevExp) / prevExp) * 100 : 0;
 
-    // Time to reach goals
+    // Goal projections
     const goalProjections = goals.map((g) => {
       const remaining = g.targetAmount - g.currentAmount;
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
-      return { name: g.name, monthsNeeded, remaining };
+      return { name: g.name, monthsNeeded };
     });
+
+    // Regular spending projections
+    const FREQ_MONTHLY: Record<string, number> = {
+      daily: 365 / 12, weekly: 52 / 12, biweekly: 26 / 12,
+      monthly: 1, quarterly: 1 / 3, yearly: 1 / 12,
+    };
+    let recurringMonthlyExpense = 0;
+    let recurringMonthlyIncome = 0;
+    regularSpendings.forEach((r) => {
+      const monthly = r.amount * (FREQ_MONTHLY[r.frequency] ?? 1);
+      if (r.transactionType === 'expense') recurringMonthlyExpense += monthly;
+      else recurringMonthlyIncome += monthly;
+    });
+
+    // Upcoming items in next 30 days
+    const in30 = new Date(now.getTime() + 30 * 86_400_000);
+    let upcomingExpense30 = 0;
+    let upcomingIncome30 = 0;
+    upcomingItems
+      .filter((u) => !u.isPaid && new Date(u.dueDate) <= in30)
+      .forEach((u) => {
+        if (u.transactionType === 'expense') upcomingExpense30 += u.amount;
+        else upcomingIncome30 += u.amount;
+      });
 
     return {
       avgMonthlyIncome,
@@ -168,13 +238,20 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
       savingsRate,
       spendingTrend,
       goalProjections,
+      recurringMonthlyExpense,
+      recurringMonthlyIncome,
+      upcomingExpense30,
+      upcomingIncome30,
     };
-  }, [transactions, goals]);
+  }, [transactions, goals, regularSpendings, upcomingItems]);
 
-  const SPANS: TimeSpan[] = ['1M', '3M', '6M', '1Y', 'ALL'];
+  const SPANS: TimeSpan[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
+
+  // XAxis tick density: reduce labels when many data points
+  const xAxisInterval = chartSpan === '1M' ? 4 : chartSpan === '3M' ? 1 : undefined;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-24 sm:pb-6">
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-28 sm:pb-10">
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <SummaryCard
@@ -203,46 +280,62 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
         />
       </div>
 
-      {/* Quick Add */}
-      <button
-        onClick={onAddTransaction}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-2.5 rounded-xl transition-colors text-sm cursor-pointer"
-      >
-        + Add Transaction
-      </button>
-
       {/* Projections */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4">
           <BarChart2 className="w-4 h-4 text-gray-500" />
-          <h3 className="font-semibold text-gray-700">Statistical Projections</h3>
+          <h3 className="font-semibold text-gray-700">Projections & Insights</h3>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-          <ProjectionCard
-            label="Avg Monthly Income"
-            value={fmt(projections.avgMonthlyIncome)}
-            sub="(last 3 months)"
-            color="emerald"
-          />
-          <ProjectionCard
-            label="Avg Monthly Expense"
-            value={fmt(projections.avgMonthlyExpense)}
-            sub="(last 3 months)"
-            color="red"
-          />
-          <ProjectionCard
-            label="Projected Annual Savings"
-            value={fmt(projections.annualSavings)}
-            sub="at current rate"
-            color={projections.annualSavings >= 0 ? 'blue' : 'orange'}
-          />
-          <ProjectionCard
-            label="Savings Rate"
-            value={`${projections.savingsRate.toFixed(1)}%`}
-            sub="of monthly income"
-            color={projections.savingsRate >= 20 ? 'emerald' : projections.savingsRate >= 10 ? 'amber' : 'red'}
-          />
+
+        {/* Transaction-based projections */}
+        <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium">Based on last 3 months</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <ProjectionCard label="Avg Monthly Income"   value={fmt(projections.avgMonthlyIncome)}   sub="transactions" color="emerald" />
+          <ProjectionCard label="Avg Monthly Expense"  value={fmt(projections.avgMonthlyExpense)}  sub="transactions" color="red" />
+          <ProjectionCard label="Projected Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
+          <ProjectionCard label="Savings Rate" value={`${projections.savingsRate.toFixed(1)}%`} sub="of monthly income" color={projections.savingsRate >= 20 ? 'emerald' : projections.savingsRate >= 10 ? 'amber' : 'red'} />
         </div>
+
+        {/* Recurring spending projections */}
+        {(projections.recurringMonthlyExpense > 0 || projections.recurringMonthlyIncome > 0) && (
+          <>
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium flex items-center gap-1">
+              <RepeatIcon className="w-3 h-3" /> Recurring (monthly equivalent)
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              {projections.recurringMonthlyIncome > 0 && (
+                <ProjectionCard label="Recurring Income" value={fmt(projections.recurringMonthlyIncome)} sub="per month" color="emerald" />
+              )}
+              {projections.recurringMonthlyExpense > 0 && (
+                <ProjectionCard label="Recurring Expenses" value={fmt(projections.recurringMonthlyExpense)} sub="per month" color="red" />
+              )}
+              <ProjectionCard
+                label="Net After Recurring"
+                value={fmt(projections.avgMonthlySavings - projections.recurringMonthlyExpense + projections.recurringMonthlyIncome)}
+                sub="estimated"
+                color="blue"
+              />
+            </div>
+          </>
+        )}
+
+        {/* Upcoming items */}
+        {(projections.upcomingExpense30 > 0 || projections.upcomingIncome30 > 0) && (
+          <>
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Next 30 Days
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              {projections.upcomingExpense30 > 0 && (
+                <ProjectionCard label="Upcoming Expenses" value={fmt(projections.upcomingExpense30)} sub="due ≤ 30 days" color="red" />
+              )}
+              {projections.upcomingIncome30 > 0 && (
+                <ProjectionCard label="Upcoming Income" value={fmt(projections.upcomingIncome30)} sub="due ≤ 30 days" color="emerald" />
+              )}
+            </div>
+          </>
+        )}
+
         {projections.spendingTrend !== 0 && (
           <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-1 ${
             projections.spendingTrend > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
@@ -251,21 +344,19 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
             Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month
           </div>
         )}
+
         {projections.goalProjections.length > 0 && projections.avgMonthlySavings > 0 && (
           <div className="mt-4 space-y-2">
             <p className="text-xs font-medium text-gray-500 flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Time to reach goals (at current savings rate)
+              <Calendar className="w-3 h-3" /> Time to reach goals
             </p>
             {projections.goalProjections.map((g) => (
               <div key={g.name} className="flex justify-between items-center text-xs text-gray-600">
                 <span className="truncate max-w-[60%]">{g.name}</span>
                 <span className="font-medium text-gray-800">
-                  {g.monthsNeeded === Infinity
-                    ? 'N/A'
-                    : g.monthsNeeded <= 0
-                    ? '✓ Reached'
-                    : g.monthsNeeded < 12
-                    ? `~${g.monthsNeeded}mo`
+                  {g.monthsNeeded === Infinity ? 'N/A'
+                    : g.monthsNeeded <= 0 ? '✓ Reached'
+                    : g.monthsNeeded < 12 ? `~${g.monthsNeeded}mo`
                     : `~${(g.monthsNeeded / 12).toFixed(1)}yr`}
                 </span>
               </div>
@@ -278,9 +369,9 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Area Chart */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+          <div className="flex justify-between items-center mb-1 flex-wrap gap-2">
             <h3 className="font-semibold text-gray-700 text-sm">Income vs Expenses</h3>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {SPANS.map((s) => (
                 <button
                   key={s}
@@ -294,6 +385,7 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
               ))}
             </div>
           </div>
+          <p className="text-xs text-gray-400 mb-3">{chartTitle}</p>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={chartData}>
               <defs>
@@ -306,20 +398,16 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
                   <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={fmtShort} width={45} />
+              <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={xAxisInterval} />
+              <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => fmtShort(v)} width={48} />
               <Tooltip formatter={(v) => (typeof v === 'number' ? fmt(v) : v)} />
               <Area type="monotone" dataKey="income" stroke="#10b981" fill="url(#incomeGrad)" strokeWidth={2} />
               <Area type="monotone" dataKey="expense" stroke="#ef4444" fill="url(#expenseGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex gap-4 mt-2 justify-center text-xs text-gray-500">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-emerald-500 inline-block" /> Income
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-red-500 inline-block" /> Expenses
-            </span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-emerald-500 inline-block" /> Income</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-500 inline-block" /> Expenses</span>
           </div>
         </div>
 
@@ -327,7 +415,7 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
             <h3 className="font-semibold text-gray-700 text-sm">Expenses by Category</h3>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {SPANS.map((s) => (
                 <button
                   key={s}
@@ -345,15 +433,7 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
             <>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie
-                    data={expenseByCategory}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={75}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
+                  <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} dataKey="value">
                     {expenseByCategory.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
@@ -371,21 +451,19 @@ export function Dashboard({ onAddTransaction }: DashboardProps) {
               </div>
             </>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">
-              No expense data yet
-            </div>
+            <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">No expense data for this period</div>
           )}
         </div>
       </div>
 
-      {/* Monthly Bar Chart */}
+      {/* Bar Chart — mirrors the area chart time span */}
       {chartData.some((d) => d.income > 0 || d.expense > 0) && (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-700 mb-4 text-sm">Monthly Savings Breakdown</h3>
+          <h3 className="font-semibold text-gray-700 mb-4 text-sm">Savings Breakdown — {chartTitle}</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} barGap={4}>
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={fmtShort} width={45} />
+              <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={xAxisInterval} />
+              <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => fmtShort(v)} width={48} />
               <Tooltip formatter={(v) => (typeof v === 'number' ? fmt(v) : v)} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} name="Income" />

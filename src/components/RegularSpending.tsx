@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Pencil, X, RepeatIcon } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { useCurrency } from '../hooks/useCurrency';
 import type { RegularSpending, Frequency } from '../types';
 
 const FREQUENCIES: { value: Frequency; label: string }[] = [
@@ -12,8 +13,7 @@ const FREQUENCIES: { value: Frequency; label: string }[] = [
   { value: 'yearly', label: 'Yearly' },
 ];
 
-const FREQ_MULTIPLIER: Record<Frequency, number> = {
-  daily: 365,
+const FREQ_MULTIPLIER: Record<Frequency, number> = {  daily: 365,
   weekly: 52,
   biweekly: 26,
   monthly: 12,
@@ -27,9 +27,6 @@ const EXPENSE_CATEGORIES = [
   'Subscriptions', 'Travel', 'Childcare', 'Debt Payment', 'Other',
 ];
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Business Income', 'Bonus', 'Other'];
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
 interface FormData {
   name: string;
@@ -55,6 +52,7 @@ const EMPTY_FORM: FormData = {
 
 export function RegularSpendingPage() {
   const { regularSpendings, addRegularSpending, updateRegularSpending, deleteRegularSpending } = useAppStore();
+  const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<RegularSpending | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
@@ -90,7 +88,7 @@ export function RegularSpendingPage() {
       amount: parseFloat(form.amount),
       category: form.category || categories[0],
       frequency: form.frequency,
-      startDate: form.startDate,
+      startDate: form.startDate || new Date().toISOString().split('T')[0],
       endDate: form.endDate || undefined,
       transactionType: form.transactionType,
       description: form.description || undefined,
@@ -267,9 +265,9 @@ export function RegularSpendingPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Start Date</label>
+                  <label className="block text-xs text-gray-500 mb-1">Start Date (opt.)</label>
                   <input
-                    type="date" required
+                    type="date"
                     value={form.startDate}
                     onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"

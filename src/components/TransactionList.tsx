@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, ArrowLeftRight, TrendingUp, RotateCcw } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { useCurrency } from '../hooks/useCurrency';
 import { AddTransaction } from './AddTransaction';
 import type { Transaction, TransactionType } from '../types';
 
 interface TransactionListProps {
   onAddTransaction: () => void;
 }
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 
 const TYPE_ICON: Record<TransactionType, React.ReactNode> = {
   income: <ArrowUpCircle className="w-5 h-5 text-emerald-600" />,
@@ -48,6 +46,7 @@ type FilterType = typeof ALL_FILTER_TYPES[number];
 
 export function TransactionList({ onAddTransaction }: TransactionListProps) {
   const { transactions, deleteTransaction } = useAppStore();
+  const { fmt } = useCurrency();
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
   const [editTx, setEditTx] = useState<Transaction | null>(null);

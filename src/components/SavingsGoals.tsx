@@ -1,16 +1,10 @@
 import { useState } from 'react';
 import { Trash2, Plus, Check, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
 
 const GOAL_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-  }).format(n);
 
 interface GoalForm {
   name: string;
@@ -28,6 +22,7 @@ const EMPTY_FORM: GoalForm = {
 
 export function SavingsGoals() {
   const { goals, addGoal, updateGoal, deleteGoal } = useAppStore();
+  const { fmt } = useCurrency();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
   const [depositId, setDepositId] = useState<string | null>(null);

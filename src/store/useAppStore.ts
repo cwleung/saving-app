@@ -16,6 +16,8 @@ interface AppState {
   regularSpendings: RegularSpending[];
   upcomingItems: UpcomingItem[];
   loading: boolean;
+  currency: string;
+  setCurrency: (code: string) => void;
   setUid: (uid: string | null) => void;
   addTransaction: (tx: Transaction) => void;
   updateTransaction: (tx: Transaction) => void;
@@ -43,6 +45,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
   regularSpendings: [],
   upcomingItems: [],
   loading: false,
+  currency: localStorage.getItem('currency') ?? 'USD',
+
+  setCurrency: (code) => {
+    localStorage.setItem('currency', code);
+    set({ currency: code });
+  },
 
   setUid: (uid) => {
     unsubTransactions?.();

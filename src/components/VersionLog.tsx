@@ -9,9 +9,23 @@ interface VersionEntry {
 
 const VERSION_LOG: VersionEntry[] = [
   {
-    version: '1.2.0',
+    version: '1.3.0',
     date: 'April 9, 2026',
     isLatest: true,
+    changes: [
+      { category: 'Fix', text: 'Regular Spending: start date is now optional (defaults to today)' },
+      { category: 'Feature', text: 'Charts support daily (1W, 1M) and weekly (3M) granularity — just like stock charts' },
+      { category: 'Feature', text: 'Dashboard projections now include monthly recurring expenses/income from Regular tab' },
+      { category: 'Feature', text: 'Dashboard shows upcoming expenses/income due in the next 30 days' },
+      { category: 'Feature', text: 'Foreign currency support: USD, EUR, GBP, HKD, CNY, JPY, SGD, CAD, AUD, CHF, KRW, INR and more' },
+      { category: 'UX', text: 'Currency picker added to the header — persisted in localStorage' },
+      { category: 'UX', text: 'Add Transaction button replaced with a floating action button (FAB) on Dashboard & Transactions tabs' },
+      { category: 'UX', text: 'Projection section reorganised with clear sub-headings for transactions, recurring, and upcoming' },
+    ],
+  },
+  {
+    version: '1.2.0',
+    date: 'April 9, 2026',
     changes: [
       { category: 'Feature', text: 'Added Version Log tab to track app history' },
       { category: 'Feature', text: 'Transactions are now editable (tap the pencil icon)' },

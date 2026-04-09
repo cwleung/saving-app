@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Pencil, X, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { useCurrency } from '../hooks/useCurrency';
 import type { UpcomingItem } from '../types';
 
 const EXPENSE_CATEGORIES = [
@@ -9,9 +10,6 @@ const EXPENSE_CATEGORIES = [
   'Subscriptions', 'Travel', 'Childcare', 'Debt Payment', 'Other',
 ];
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Bonus', 'Tax Refund', 'Other'];
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
 function daysFromNow(dateStr: string): number {
   const now = new Date();
@@ -41,6 +39,7 @@ const EMPTY_FORM: FormData = {
 
 export function UpcomingSpendingPage() {
   const { upcomingItems, addUpcomingItem, updateUpcomingItem, deleteUpcomingItem } = useAppStore();
+  const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<UpcomingItem | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);

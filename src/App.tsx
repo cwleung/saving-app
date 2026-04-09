@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { useAppStore } from './store/useAppStore';
 import { LockScreen } from './components/LockScreen';
@@ -45,9 +46,7 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       <Header onLogout={logout} activeTab={activeTab} onTabChange={setActiveTab} />
       <main>
-        {activeTab === 'Dashboard' && (
-          <Dashboard onAddTransaction={() => setShowAddTransaction(true)} />
-        )}
+        {activeTab === 'Dashboard' && <Dashboard />}
         {activeTab === 'Transactions' && (
           <TransactionList onAddTransaction={() => setShowAddTransaction(true)} />
         )}
@@ -56,6 +55,18 @@ function App() {
         {activeTab === 'Upcoming' && <UpcomingSpendingPage />}
         {activeTab === 'Changelog' && <VersionLogPage />}
       </main>
+
+      {/* Floating Action Button — visible on Dashboard and Transactions */}
+      {(activeTab === 'Dashboard' || activeTab === 'Transactions') && (
+        <button
+          onClick={() => setShowAddTransaction(true)}
+          className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-10 w-14 h-14 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-transform"
+          aria-label="Add transaction"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      )}
+
       {showAddTransaction && (
         <AddTransaction onClose={() => setShowAddTransaction(false)} />
       )}
