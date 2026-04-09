@@ -85,7 +85,7 @@ function DateField({
 }
 
 export function UpcomingSpendingPage() {
-  const { upcomingItems, addUpcomingItem, updateUpcomingItem, deleteUpcomingItem } = useAppStore();
+  const { upcomingItems, addUpcomingItem, updateUpcomingItem, deleteUpcomingItem, addTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<UpcomingItem | null>(null);
@@ -216,7 +216,17 @@ export function UpcomingSpendingPage() {
                       <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
                         {/* Check button */}
                         <button
-                          onClick={() => updateUpcomingItem({ ...item, isPaid: true })}
+                          onClick={() => {
+                            updateUpcomingItem({ ...item, isPaid: true });
+                            addTransaction({
+                              id: crypto.randomUUID(),
+                              type: item.transactionType,
+                              amount: item.amount,
+                              category: item.category,
+                              description: item.name + (item.description ? ` — ${item.description}` : ''),
+                              date: new Date().toISOString(),
+                            });
+                          }}
                           className="shrink-0 w-7 h-7 rounded-full border-2 border-gray-200 flex items-center justify-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-colors"
                           title="Mark as done"
                         >

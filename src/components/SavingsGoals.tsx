@@ -29,7 +29,7 @@ function daysUntil(dateStr: string): number {
 }
 
 export function SavingsGoals() {
-  const { goals, addGoal, deleteGoal, transactions, addTransaction } = useAppStore();
+  const { goals, addGoal, deleteGoal, addTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
@@ -54,7 +54,7 @@ export function SavingsGoals() {
   function handleDeposit(goal: SavingsGoal) {
     const amt = parseFloat(depositAmount);
     if (!amt || amt <= 0) return;
-    // Create a real income transaction tagged to this goal
+    // Create an income transaction tagged to this goal — the store will auto-update goal.currentAmount
     addTransaction({
       id: crypto.randomUUID(),
       type: 'income',
@@ -68,19 +68,12 @@ export function SavingsGoals() {
     setDepositAmount('');
   }
 
-  // Per-goal: sum income transactions tagged to that goal
-  function goalTxFunded(goalId: string): number {
-    return transactions
-      .filter((t) => t.goalId === goalId && (t.type === 'income' || t.type === 'refund'))
-      .reduce((s, t) => s + t.amount, 0);
-  }
-
-  // Statistics — base currentAmount is the "starting value"; transactions are the live funding
-  const totalSaved   = goals.reduce((s, g) => s + g.currentAmount + goalTxFunded(g.id), 0);
-  const totalTarget  = goals.reduce((s, g) => s + g.targetAmount, 0);
-  const overallPct   = totalTarget > 0 ? Math.min((totalSaved / totalTarget) * 100, 100) : 0;
-  const remaining    = goals.filter((g) => g.currentAmount + goalTxFunded(g.id) < g.targetAmount).length;
-  const totalRemaining = goals.reduce((s, g) => s + Math.max(0, g.targetAmount - g.currentAmount - goalTxFunded(g.id)), 0);
+  // goal.currentAmount is kept in sync by the store whenever a tagged transaction is added/deleted
+  const totalSaved     = goals.reduce((s, g) => s + g.currentAmount, 0);
+  const totalTarget    = goals.reduce((s, g) => s + g.targetAmount, 0);
+  const overallPct     = totalTarget > 0 ? Math.min((totalSaved / totalTarget) * 100, 100) : 0;
+  const remaining      = goals.filter((g) => g.currentAmount < g.targetAmount).length;
+  const totalRemaining = goals.reduce((s, g) => s + Math.max(0, g.targetAmount - g.currentAmount), 0);
 
   // Nearest deadline among incomplete goals
   const soonestGoal = goals
@@ -246,11 +239,9 @@ export function SavingsGoals() {
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {goals.map((goal) => {
-            const txFunded = goalTxFunded(goal.id);
-            const effectiveSaved = goal.currentAmount + txFunded;
-            const progress = Math.min((effectiveSaved / goal.targetAmount) * 100, 100);
-            const isComplete = effectiveSaved >= goal.targetAmount;
-            const leftover = Math.max(0, goal.targetAmount - effectiveSaved);
+            const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
+            const isComplete = goal.currentAmount >= goal.targetAmount;
+            const leftover = Math.max(0, goal.targetAmount - goal.currentAmount);
             const days = goal.deadline ? daysUntil(goal.deadline) : null;
             const moNeeded = goal.deadline && !isComplete && days !== null && days > 0
               ? leftover / Math.max(1, days / 30)
@@ -275,7 +266,7 @@ export function SavingsGoals() {
 
                 {/* Progress bar */}
                 <div className="flex justify-between items-center text-xs mb-1.5">
-                  <span className="text-gray-500 font-medium">{fmt(effectiveSaved)} saved</span>
+                  <span className="text-gray-500 font-medium">{fmt(goal.currentAmount)} saved</span>
                   <span className="font-bold" style={{ color: goal.color }}>{progress.toFixed(1)}%</span>
                 </div>
                 <div className="relative w-full bg-gray-100 rounded-full h-2.5 mb-1 overflow-hidden">
@@ -289,17 +280,11 @@ export function SavingsGoals() {
                     />
                   ))}
                 </div>
-                {txFunded > 0 && (
-                  <p className="text-[11px] text-gray-400 mb-1">
-                    <span className="text-emerald-600 font-semibold">{fmt(txFunded)}</span> from transactions
-                    {goal.currentAmount > 0 && <> · <span className="font-semibold">{fmt(goal.currentAmount)}</span> manual</>}
-                  </p>
-                )}
                 {/* Next milestone hint */}
                 {!isComplete && (() => {
                   const next = [25, 50, 75, 100].find((m) => progress < m);
                   if (next === undefined) return null;
-                  const needed = (next / 100) * goal.targetAmount - effectiveSaved;
+                  const needed = (next / 100) * goal.targetAmount - goal.currentAmount;
                   return (
                     <p className="text-[11px] text-gray-400 mb-2.5">
                       <span className="font-semibold text-gray-600">{fmt(needed)}</span> more to reach {next}%
