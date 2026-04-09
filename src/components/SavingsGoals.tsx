@@ -267,11 +267,30 @@ export function SavingsGoals() {
                 {/* Progress bar */}
                 <div className="flex justify-between items-center text-xs mb-1.5">
                   <span className="text-gray-500 font-medium">{fmt(goal.currentAmount)} saved</span>
-                  <span className="font-bold" style={{ color: goal.color }}>{Math.round(progress)}%</span>
+                  <span className="font-bold" style={{ color: goal.color }}>{progress.toFixed(1)}%</span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
-                  <div className="h-2 rounded-full transition-all" style={{ width: `${progress}%`, background: goal.color }} />
+                <div className="relative w-full bg-gray-100 rounded-full h-2.5 mb-1 overflow-hidden">
+                  <div className="h-2.5 rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: goal.color }} />
+                  {/* Milestone ticks at 25 / 50 / 75 % */}
+                  {[25, 50, 75].map((pct) => (
+                    <div
+                      key={pct}
+                      className={`absolute top-0 w-px h-2.5 ${progress >= pct ? 'bg-white/50' : 'bg-gray-300'}`}
+                      style={{ left: `${pct}%` }}
+                    />
+                  ))}
                 </div>
+                {/* Next milestone hint */}
+                {!isComplete && (() => {
+                  const next = [25, 50, 75, 100].find((m) => progress < m);
+                  if (next === undefined) return null;
+                  const needed = (next / 100) * goal.targetAmount - goal.currentAmount;
+                  return (
+                    <p className="text-[11px] text-gray-400 mb-2.5">
+                      <span className="font-semibold text-gray-600">{fmt(needed)}</span> more to reach {next}%
+                    </p>
+                  );
+                })()}
 
                 {/* Stats row */}
                 <div className="grid grid-cols-2 gap-2 mb-3">
@@ -290,6 +309,16 @@ export function SavingsGoals() {
                     </div>
                   )}
                 </div>
+
+                {/* Daily savings alert when deadline is close */}
+                {!isComplete && days !== null && days > 0 && days <= 30 && (
+                  <div className="bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 mb-1 flex items-center gap-2">
+                    <span className="text-red-500 text-base">⚡</span>
+                    <p className="text-xs text-red-700">
+                      Save <span className="font-bold">{fmt(leftover / days)}/day</span> for the next {days} day{days !== 1 ? 's' : ''} to hit your goal on time
+                    </p>
+                  </div>
+                )}
 
                 {isComplete ? (
                   <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-semibold">
