@@ -7,6 +7,13 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+
+// Firestore rejects undefined field values — strip them before writing
+function clean<T extends object>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as T;
+}
 import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem } from '../types';
 
 interface AppState {
@@ -103,13 +110,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   addTransaction: (tx) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), tx);
+    void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), clean(tx));
   },
 
   updateTransaction: (tx) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), tx);
+    void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), clean(tx));
   },
 
   deleteTransaction: (id) => {
@@ -121,13 +128,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   addGoal: (goal) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/goals/${goal.id}`), goal);
+    void setDoc(doc(db, `users/${uid}/goals/${goal.id}`), clean(goal));
   },
 
   updateGoal: (goal) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/goals/${goal.id}`), goal);
+    void setDoc(doc(db, `users/${uid}/goals/${goal.id}`), clean(goal));
   },
 
   deleteGoal: (id) => {
@@ -139,13 +146,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   addRegularSpending: (item) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/regularSpendings/${item.id}`), item);
+    void setDoc(doc(db, `users/${uid}/regularSpendings/${item.id}`), clean(item));
   },
 
   updateRegularSpending: (item) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/regularSpendings/${item.id}`), item);
+    void setDoc(doc(db, `users/${uid}/regularSpendings/${item.id}`), clean(item));
   },
 
   deleteRegularSpending: (id) => {
@@ -157,13 +164,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   addUpcomingItem: (item) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/upcomingItems/${item.id}`), item);
+    void setDoc(doc(db, `users/${uid}/upcomingItems/${item.id}`), clean(item));
   },
 
   updateUpcomingItem: (item) => {
     const uid = get().uid;
     if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/upcomingItems/${item.id}`), item);
+    void setDoc(doc(db, `users/${uid}/upcomingItems/${item.id}`), clean(item));
   },
 
   deleteUpcomingItem: (id) => {
