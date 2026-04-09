@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hide scrollbar on filter chips */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Safe area for bottom nav */
+.safe-pb { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+
+/* iOS momentum scroll */
+.overflow-scroll-ios { -webkit-overflow-scrolling: touch; }
+
