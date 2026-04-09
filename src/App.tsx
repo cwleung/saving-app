@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useAppStore } from './store/useAppStore';
 import { LockScreen } from './components/LockScreen';
-import { Header } from './components/Header';
+import { Header, type Tab } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { TransactionList } from './components/TransactionList';
 import { SavingsGoals } from './components/SavingsGoals';
 import { AddTransaction } from './components/AddTransaction';
-
-type Tab = 'Dashboard' | 'Transactions' | 'Goals';
+import { RegularSpendingPage } from './components/RegularSpending';
+import { UpcomingSpendingPage } from './components/UpcomingSpending';
+import { VersionLogPage } from './components/VersionLog';
 
 function App() {
   const { user, loading, authenticated, setup, login, logout } = useAuth();
@@ -51,6 +52,9 @@ function App() {
           <TransactionList onAddTransaction={() => setShowAddTransaction(true)} />
         )}
         {activeTab === 'Goals' && <SavingsGoals />}
+        {activeTab === 'Regular' && <RegularSpendingPage />}
+        {activeTab === 'Upcoming' && <UpcomingSpendingPage />}
+        {activeTab === 'Changelog' && <VersionLogPage />}
       </main>
       {showAddTransaction && (
         <AddTransaction onClose={() => setShowAddTransaction(false)} />

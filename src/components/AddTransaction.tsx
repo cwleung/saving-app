@@ -1,56 +1,81 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
-import type { TransactionType } from '../types';
+import type { Transaction, TransactionType } from '../types';
 
-const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Investment', 'Gift', 'Other'];
-const EXPENSE_CATEGORIES = [
-  'Food',
-  'Housing',
-  'Transport',
-  'Entertainment',
-  'Healthcare',
-  'Shopping',
-  'Utilities',
-  'Education',
-  'Other',
-];
+const CATEGORIES: Record<TransactionType, string[]> = {
+  income: ['Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Business Income', 'Bonus', 'Gift', 'Tax Refund', 'Other'],
+  expense: ['Food & Dining', 'Housing & Rent', 'Transport', 'Entertainment', 'Healthcare', 'Shopping', 'Utilities', 'Education', 'Insurance', 'Personal Care', 'Subscriptions', 'Travel', 'Childcare', 'Debt Payment', 'Other'],
+  transfer: ['Bank Transfer', 'Savings Transfer', 'Investment Transfer', 'Other'],
+  investment: ['Stocks', 'Crypto', 'Real Estate', 'ETF/Index Fund', 'Retirement (401k/IRA)', 'Bonds', 'Other'],
+  refund: ['Product Return', 'Tax Refund', 'Insurance Claim', 'Service Refund', 'Other'],
+};
+
+const TYPE_LABELS: Record<TransactionType, string> = {
+  income: 'Income',
+  expense: 'Expense',
+  transfer: 'Transfer',
+  investment: 'Investment',
+  refund: 'Refund',
+};
+
+const TYPE_COLORS: Record<TransactionType, string> = {
+  income: 'bg-emerald-600 text-white',
+  expense: 'bg-red-500 text-white',
+  transfer: 'bg-blue-500 text-white',
+  investment: 'bg-purple-600 text-white',
+  refund: 'bg-amber-500 text-white',
+};
 
 interface AddTransactionProps {
   onClose: () => void;
+  initialData?: Transaction;
 }
 
-export function AddTransaction({ onClose }: AddTransactionProps) {
-  const addTransaction = useAppStore((s) => s.addTransaction);
-  const [type, setType] = useState<TransactionType>('expense');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
+  const { addTransaction, updateTransaction } = useAppStore();
+  const isEdit = !!initialData;
 
-  const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const [type, setType] = useState<TransactionType>(initialData?.type ?? 'expense');
+  const [amount, setAmount] = useState(initialData ? String(initialData.amount) : '');
+  const [category, setCategory] = useState(initialData?.category ?? '');
+  const [description, setDescription] = useState(initialData?.description ?? '');
+  const [date, setDate] = useState(
+    initialData
+      ? new Date(initialData.date).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0]
+  );
+
+  const categories = CATEGORIES[type];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    addTransaction({
-      id: crypto.randomUUID(),
+    const tx: Transaction = {
+      id: initialData?.id ?? crypto.randomUUID(),
       type,
       amount: parseFloat(amount),
       category: category || categories[0],
       description,
       date: new Date(date).toISOString(),
-    });
+    };
+    if (isEdit) {
+      updateTransaction(tx);
+    } else {
+      addTransaction(tx);
+    }
     onClose();
   }
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-        <div className="flex justify-between items-center p-6 border-b">
-          <h2 className="font-semibold text-gray-800 text-lg">Add Transaction</h2>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl max-h-[92dvh] overflow-y-auto">
+        <div className="flex justify-between items-center p-4 sm:p-6 border-b sticky top-0 bg-white z-10">
+          <h2 className="font-semibold text-gray-800 text-lg">
+            {isEdit ? 'Edit Transaction' : 'Add Transaction'}
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 cursor-pointer"
@@ -59,10 +84,10 @@ export function AddTransaction({ onClose }: AddTransactionProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           {/* Type toggle */}
-          <div className="flex rounded-xl overflow-hidden border border-gray-200">
-            {(['expense', 'income'] as const).map((t) => (
+          <div className="grid grid-cols-5 gap-1 rounded-xl overflow-hidden border border-gray-200">
+            {(Object.keys(TYPE_LABELS) as TransactionType[]).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -70,15 +95,11 @@ export function AddTransaction({ onClose }: AddTransactionProps) {
                   setType(t);
                   setCategory('');
                 }}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors capitalize cursor-pointer ${
-                  type === t
-                    ? t === 'income'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-red-500 text-white'
-                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                className={`py-2 text-xs font-medium transition-colors cursor-pointer ${
+                  type === t ? TYPE_COLORS[t] : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
-                {t}
+                {TYPE_LABELS[t]}
               </button>
             ))}
           </div>
@@ -138,7 +159,7 @@ export function AddTransaction({ onClose }: AddTransactionProps) {
             type="submit"
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl py-3 transition-colors cursor-pointer"
           >
-            Add Transaction
+            {isEdit ? 'Save Changes' : 'Add Transaction'}
           </button>
         </form>
       </div>
