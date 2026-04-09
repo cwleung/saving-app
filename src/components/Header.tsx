@@ -23,7 +23,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 const BOTTOM_TABS: Tab[] = ['Dashboard', 'Transactions', 'Goals', 'Regular', 'Upcoming'];
 
 export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
-  const { currency, setCurrency } = useAppStore((s) => ({ currency: s.currency, setCurrency: s.setCurrency }));
+  const currency = useAppStore((s) => s.currency);
+  const setCurrency = useAppStore((s) => s.setCurrency);
   return (
     <>
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
