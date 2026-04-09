@@ -34,7 +34,7 @@ interface AddTransactionProps {
 }
 
 export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
-  const { addTransaction, updateTransaction } = useAppStore();
+  const { addTransaction, updateTransaction, goals } = useAppStore();
   const { currency } = useCurrency();
   const isEdit = !!initialData;
 
@@ -47,8 +47,10 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
       ? new Date(initialData.date).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0]
   );
+  const [goalId, setGoalId] = useState(initialData?.goalId ?? '');
 
   const categories = CATEGORIES[type];
+  const showGoalSelector = (type === 'income' || type === 'refund') && goals.length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,6 +61,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
       category: category || categories[0],
       description,
       date: new Date(date).toISOString(),
+      goalId: goalId || undefined,
     };
     if (isEdit) {
       updateTransaction(tx);
@@ -156,6 +159,22 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400"
             />
           </div>
+
+          {showGoalSelector && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Contribute to goal (optional)</label>
+              <select
+                value={goalId}
+                onChange={(e) => setGoalId(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+              >
+                <option value="">None</option>
+                {goals.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <button
             type="submit"

@@ -287,6 +287,23 @@ export function Dashboard() {
           <h3 className="font-semibold text-gray-700">Projections & Insights</h3>
         </div>
 
+        {/* Combined This Month projection */}
+        {(projections.recurringMonthlyExpense > 0 || projections.upcomingExpense30 > 0 || projections.avgMonthlyExpense > 0) && (() => {
+          const projIncome  = projections.avgMonthlyIncome  + projections.recurringMonthlyIncome  + projections.upcomingIncome30;
+          const projExpense = projections.avgMonthlyExpense + projections.recurringMonthlyExpense + projections.upcomingExpense30;
+          const projNet     = projIncome - projExpense;
+          return (
+            <>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium">Projected This Month</p>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <ProjectionCard label="Projected Income"  value={fmt(projIncome)}  sub="avg + recurring + upcoming" color="emerald" />
+                <ProjectionCard label="Projected Expenses" value={fmt(projExpense)} sub="avg + recurring + upcoming" color="red" />
+                <ProjectionCard label="Projected Net" value={fmt(projNet)} sub="this month estimate" color={projNet >= 0 ? 'blue' : 'orange'} />
+              </div>
+            </>
+          );
+        })()}
+
         {/* Transaction-based projections */}
         <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium">Based on last 3 months</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -302,19 +319,13 @@ export function Dashboard() {
             <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium flex items-center gap-1">
               <RepeatIcon className="w-3 h-3" /> Recurring (monthly equivalent)
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
               {projections.recurringMonthlyIncome > 0 && (
                 <ProjectionCard label="Recurring Income" value={fmt(projections.recurringMonthlyIncome)} sub="per month" color="emerald" />
               )}
               {projections.recurringMonthlyExpense > 0 && (
                 <ProjectionCard label="Recurring Expenses" value={fmt(projections.recurringMonthlyExpense)} sub="per month" color="red" />
               )}
-              <ProjectionCard
-                label="Net After Recurring"
-                value={fmt(projections.avgMonthlySavings - projections.recurringMonthlyExpense + projections.recurringMonthlyIncome)}
-                sub="estimated"
-                color="blue"
-              />
             </div>
           </>
         )}
@@ -323,9 +334,9 @@ export function Dashboard() {
         {(projections.upcomingExpense30 > 0 || projections.upcomingIncome30 > 0) && (
           <>
             <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium flex items-center gap-1">
-              <Clock className="w-3 h-3" /> Next 30 Days
+              <Clock className="w-3 h-3" /> Next 30 Days (scheduled)
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
               {projections.upcomingExpense30 > 0 && (
                 <ProjectionCard label="Upcoming Expenses" value={fmt(projections.upcomingExpense30)} sub="due ≤ 30 days" color="red" />
               )}

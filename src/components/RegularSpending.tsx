@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Pencil, X, RepeatIcon } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, RepeatIcon, ArrowRightLeft } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { RegularSpending, Frequency } from '../types';
@@ -93,7 +93,7 @@ function DateField({
 }
 
 export function RegularSpendingPage() {
-  const { regularSpendings, addRegularSpending, updateRegularSpending, deleteRegularSpending } = useAppStore();
+  const { regularSpendings, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<RegularSpending | null>(null);
@@ -227,6 +227,20 @@ export function RegularSpendingPage() {
                           <p className="text-xs text-gray-400">{fmt(monthlyAmt)}/mo</p>
                         </div>
                         <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => addTransaction({
+                              id: crypto.randomUUID(),
+                              type: item.transactionType,
+                              amount: item.amount,
+                              category: item.category,
+                              description: item.name,
+                              date: new Date().toISOString(),
+                            })}
+                            title="Log as transaction today"
+                            className="w-8 h-8 flex items-center justify-center rounded-full text-gray-300 hover:text-emerald-500 hover:bg-emerald-50 cursor-pointer transition-colors"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => openEdit(item)}
                             className="w-8 h-8 flex items-center justify-center rounded-full text-gray-300 hover:text-blue-400 hover:bg-blue-50 cursor-pointer transition-colors"
