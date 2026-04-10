@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar } from 'lucide-react';
+import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
@@ -29,12 +29,13 @@ function daysUntil(dateStr: string): number {
 }
 
 export function SavingsGoals() {
-  const { goals, addGoal, deleteGoal, addTransaction } = useAppStore();
+  const { goals, addGoal, deleteGoal, addTransaction, transactions } = useAppStore();
   const { fmt } = useCurrency();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
   const [depositId, setDepositId] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState('');
+  const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -351,6 +352,43 @@ export function SavingsGoals() {
                     <Plus className="w-4 h-4" /> Add funds
                   </button>
                 )}
+
+                {/* Contribution history toggle */}
+                {(() => {
+                  const contributions = transactions
+                    .filter((t) => t.goalId === goal.id && (t.type === 'income' || t.type === 'refund'))
+                    .sort((a, b) => b.date.localeCompare(a.date));
+                  if (contributions.length === 0) return null;
+                  const isOpen = expandedGoalId === goal.id;
+                  return (
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <button
+                        onClick={() => setExpandedGoalId(isOpen ? null : goal.id)}
+                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 cursor-pointer w-full"
+                      >
+                        {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        {contributions.length} contribution{contributions.length !== 1 ? 's' : ''}
+                        <span className="ml-auto font-semibold text-gray-500">
+                          {fmt(contributions.reduce((s, t) => s + t.amount, 0))} total
+                        </span>
+                      </button>
+                      {isOpen && (
+                        <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
+                          {contributions.map((t) => (
+                            <div key={t.id} className="flex items-center gap-2 text-xs">
+                              <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <span className="flex-1 text-gray-600 truncate">{t.description || t.category}</span>
+                              <span className="text-gray-400 shrink-0">
+                                {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                              <span className="font-semibold text-emerald-600 shrink-0">+{fmt(t.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

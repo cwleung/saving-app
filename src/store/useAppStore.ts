@@ -14,7 +14,85 @@ function clean<T extends object>(obj: T): T {
     Object.entries(obj).filter(([, v]) => v !== undefined)
   ) as T;
 }
-import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem } from '../types';
+import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Frequency } from '../types';
+
+// ─── Recurring-transaction auto-generation ───────────────────────────────────
+function getOccurrences(frequency: Frequency, from: Date, to: Date): Date[] {
+  const dates: Date[] = [];
+  const current = new Date(from);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(0, 0, 0, 0);
+  while (current < end && dates.length < 100) {
+    dates.push(new Date(current));
+    switch (frequency) {
+      case 'daily':     current.setDate(current.getDate() + 1);         break;
+      case 'weekly':    current.setDate(current.getDate() + 7);         break;
+      case 'biweekly':  current.setDate(current.getDate() + 14);        break;
+      case 'monthly':   current.setMonth(current.getMonth() + 1);       break;
+      case 'quarterly': current.setMonth(current.getMonth() + 3);       break;
+      case 'yearly':    current.setFullYear(current.getFullYear() + 1); break;
+    }
+  }
+  return dates;
+}
+
+/** IDs already processed in this browser session — prevents duplicate writes on re-snapshots */
+const processedRecurringSession = new Set<string>();
+
+async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const threeMonthsAgo = new Date(today);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+  for (const item of items) {
+    if (processedRecurringSession.has(item.id)) continue;
+    processedRecurringSession.add(item.id);
+
+    const lastProcessed = item.lastProcessedDate
+      ? new Date(item.lastProcessedDate + 'T00:00:00')
+      : null;
+
+    // Start from day after last-processed, or from max(startDate, 3-months-ago)
+    const startFrom = lastProcessed
+      ? new Date(lastProcessed.getTime() + 24 * 60 * 60 * 1000)
+      : new Date(Math.max(new Date(item.startDate + 'T00:00:00').getTime(), threeMonthsAgo.getTime()));
+    startFrom.setHours(0, 0, 0, 0);
+
+    if (startFrom >= today) continue;
+
+    const endAt = item.endDate
+      ? new Date(Math.min(new Date(item.endDate + 'T00:00:00').getTime(), today.getTime()))
+      : new Date(today);
+    endAt.setHours(0, 0, 0, 0);
+
+    const occurrences = getOccurrences(item.frequency, startFrom, endAt);
+    if (occurrences.length === 0) continue;
+
+    for (const date of occurrences) {
+      const dateStr = date.toISOString().split('T')[0];
+      const txId = `rec_${item.id}_${dateStr}`;
+      const tx: Transaction = {
+        id: txId,
+        type: item.transactionType,
+        amount: item.amount,
+        category: item.category,
+        description: item.description ? `${item.name} — ${item.description}` : item.name,
+        date: date.toISOString(),
+        recurringId: item.id,
+      };
+      await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
+    }
+
+    const todayStr = today.toISOString().split('T')[0];
+    await setDoc(
+      doc(db, `users/${uid}/regularSpendings/${item.id}`),
+      clean({ ...item, lastProcessedDate: todayStr }),
+    );
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface AppState {
   uid: string | null;
@@ -92,7 +170,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
     unsubRegular = onSnapshot(
       collection(db, `users/${uid}/regularSpendings`),
       (snap) => {
-        set({ regularSpendings: snap.docs.map((d) => d.data() as RegularSpending) });
+        const items = snap.docs.map((d) => d.data() as RegularSpending);
+        set({ regularSpendings: items });
+        void autoGenerateRecurring(uid, items);
       }
     );
 
@@ -124,6 +204,25 @@ export const useAppStore = create<AppState>()((set, get) => ({
   updateTransaction: (tx) => {
     const uid = get().uid;
     if (!uid) return;
+
+    // Adjust goal currentAmounts when goalId or amount changes
+    const oldTx = get().transactions.find((t) => t.id === tx.id);
+    const goalDeltas: Record<string, number> = {};
+    if (oldTx?.goalId && (oldTx.type === 'income' || oldTx.type === 'refund')) {
+      goalDeltas[oldTx.goalId] = (goalDeltas[oldTx.goalId] ?? 0) - oldTx.amount;
+    }
+    if (tx.goalId && (tx.type === 'income' || tx.type === 'refund')) {
+      goalDeltas[tx.goalId] = (goalDeltas[tx.goalId] ?? 0) + tx.amount;
+    }
+    for (const [goalId, delta] of Object.entries(goalDeltas)) {
+      if (delta === 0) continue;
+      const goal = get().goals.find((g) => g.id === goalId);
+      if (goal) {
+        const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount + delta) };
+        void setDoc(doc(db, `users/${uid}/goals/${goalId}`), clean(updated));
+      }
+    }
+
     void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), clean(tx));
   },
 
@@ -175,6 +274,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
   deleteRegularSpending: (id) => {
     const uid = get().uid;
     if (!uid) return;
+    // Delete all auto-generated transactions for this recurring item
+    get().transactions
+      .filter((t) => t.recurringId === id)
+      .forEach((t) => void deleteDoc(doc(db, `users/${uid}/transactions/${t.id}`)));
+    processedRecurringSession.delete(id);
     void deleteDoc(doc(db, `users/${uid}/regularSpendings/${id}`));
   },
 

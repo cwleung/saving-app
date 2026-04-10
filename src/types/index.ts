@@ -8,6 +8,8 @@ export interface Transaction {
   description: string;
   date: string;
   goalId?: string;
+  recurringId?: string;
+  upcomingId?: string;
 }
 
 export interface SavingsGoal {
@@ -31,6 +33,7 @@ export interface RegularSpending {
   endDate?: string;
   transactionType: 'income' | 'expense';
   description?: string;
+  lastProcessedDate?: string;
 }
 
 export interface UpcomingItem {

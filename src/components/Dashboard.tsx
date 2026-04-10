@@ -65,6 +65,18 @@ export function Dashboard() {
 
   const netSavings = totalIncome - totalExpenses;
 
+  // ── This-month actuals (includes auto-generated recurring) ───────────
+  const thisMonthData = useMemo(() => {
+    const key = monthKey(new Date());
+    let income = 0, expenses = 0;
+    transactions.forEach((t) => {
+      if (monthKey(new Date(t.date)) !== key) return;
+      if (t.type === 'income' || t.type === 'refund') income += t.amount;
+      else if (t.type === 'expense') expenses += t.amount;
+    });
+    return { income, expenses, net: income - expenses };
+  }, [transactions]);
+
   const totalGoalProgress = useMemo(() => {
     if (!goals.length) return 0;
     const total = goals.reduce((s, g) => s + g.targetAmount, 0);
@@ -171,7 +183,9 @@ export function Dashboard() {
     let monthExpense = 0;
     const txMonths = new Set<string>();
 
+    // Exclude auto-generated recurring transactions — they're captured via recurringMonthlyIncome
     transactions.forEach((t) => {
+      if (t.recurringId) return;
       const k = monthKey(new Date(t.date));
       txMonths.add(k);
       if (last3Keys.includes(k)) {
@@ -192,7 +206,7 @@ export function Dashboard() {
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      if (t.type !== 'expense') return;
+      if (t.type !== 'expense' || t.recurringId) return;
       const k = monthKey(new Date(t.date));
       if (k === lastMonthK) lastExp += t.amount;
       if (k === prevMonthK) prevExp += t.amount;
@@ -278,6 +292,30 @@ export function Dashboard() {
           icon={<Target className="w-5 h-5 text-purple-600" />}
           color="purple"
         />
+      </div>
+
+      {/* This Month row */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1">
+          <Calendar className="w-3.5 h-3.5" />
+          This Month (actual to date, incl. recurring)
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <p className="text-[11px] text-gray-400 mb-0.5">Income</p>
+            <p className="text-lg font-bold text-emerald-600 truncate">{fmt(thisMonthData.income)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-400 mb-0.5">Expenses</p>
+            <p className="text-lg font-bold text-red-500 truncate">{fmt(thisMonthData.expenses)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-400 mb-0.5">Net</p>
+            <p className={`text-lg font-bold truncate ${thisMonthData.net >= 0 ? 'text-blue-600' : 'text-orange-500'}`}>
+              {fmt(thisMonthData.net)}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Projections */}

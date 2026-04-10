@@ -225,6 +225,7 @@ export function UpcomingSpendingPage() {
                               category: item.category,
                               description: item.name + (item.description ? ` — ${item.description}` : ''),
                               date: new Date().toISOString(),
+                              upcomingId: item.id,
                             });
                           }}
                           className="shrink-0 w-7 h-7 rounded-full border-2 border-gray-200 flex items-center justify-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-colors"

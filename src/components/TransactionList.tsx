@@ -116,8 +116,17 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
                 <p className="font-medium text-gray-800 text-sm truncate">
                   {tx.description || tx.category}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 flex items-center gap-1 flex-wrap">
                   {tx.category} · {new Date(tx.date).toLocaleDateString()}
+                  {tx.recurringId && (
+                    <span className="bg-blue-100 text-blue-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">Recurring</span>
+                  )}
+                  {tx.upcomingId && (
+                    <span className="bg-amber-100 text-amber-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">Scheduled</span>
+                  )}
+                  {tx.goalId && (
+                    <span className="bg-purple-100 text-purple-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">Goal</span>
+                  )}
                 </p>
               </div>
               <span className={`font-semibold text-sm shrink-0 ${TYPE_AMOUNT_COLOR[tx.type]}`}>
