@@ -112,11 +112,14 @@ export function SavingsGoals() {
     .filter((g) => g.deadline && g.currentAmount < g.targetAmount)
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];
 
-  // Monthly needed to hit all deadlines
+  // Monthly needed — uses the goal's own planned period (startDate → deadline)
   const monthlyNeeded = goals
     .filter((g) => g.deadline && g.currentAmount < g.targetAmount)
     .reduce((sum, g) => {
-      const months = Math.max(1, daysUntil(g.deadline!) / 30);
+      const nowS = new Date(); nowS.setHours(0, 0, 0, 0);
+      const startD = g.startDate ? new Date(g.startDate + 'T00:00:00') : nowS;
+      const effectiveStart = startD > nowS ? startD : nowS;
+      const months = Math.max(1, (new Date(g.deadline! + 'T00:00:00').getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
       return sum + (g.targetAmount - g.currentAmount) / months;
     }, 0);
 
@@ -284,29 +287,50 @@ export function SavingsGoals() {
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {goals.map((goal) => {
-            const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
+            const nowC = new Date(); nowC.setHours(0, 0, 0, 0);
+            const goalStartD = goal.startDate ? new Date(goal.startDate + 'T00:00:00') : null;
+            const goalEndD   = goal.deadline  ? new Date(goal.deadline  + 'T00:00:00') : null;
+            const isNotStarted   = !!(goalStartD && goalStartD > nowC);
+            const isOverduePast  = !!(goalEndD && goalEndD < nowC);
+            const daysUntilStart = isNotStarted ? Math.ceil((goalStartD!.getTime() - nowC.getTime()) / 86_400_000) : null;
+            const progress   = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
             const isComplete = goal.currentAmount >= goal.targetAmount;
-            const leftover = Math.max(0, goal.targetAmount - goal.currentAmount);
-            const days = goal.deadline ? daysUntil(goal.deadline) : null;
-            const moNeeded = goal.deadline && !isComplete && days !== null && days > 0
-              ? leftover / Math.max(1, days / 30)
-              : null;
+            const leftover   = Math.max(0, goal.targetAmount - goal.currentAmount);
+            const days       = goalEndD ? daysUntil(goal.deadline!) : null;
+            // moNeeded uses goal's own planned period
+            const planStart  = (goalStartD && goalStartD > nowC) ? goalStartD : nowC;
+            const planMonths = goalEndD ? Math.max(1, (goalEndD.getTime() - planStart.getTime()) / (1000 * 60 * 60 * 24 * 30.44)) : null;
+            const moNeeded   = planMonths && !isComplete ? leftover / planMonths : null;
 
             return (
               <div key={goal.id} className="bg-white rounded-2xl border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)] p-5">
                 <div className="flex justify-between items-start mb-3">
                   <div className="min-w-0 flex-1 pr-2">
                     <h3 className="font-bold text-gray-900 truncate">{goal.name}</h3>
-                    <div className="flex flex-wrap gap-x-2 mt-0.5">
-                      {goal.startDate && (
-                        <p className="text-xs text-gray-400">
-                          From {new Date(goal.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
+                    <div className="mt-1 space-y-0.5">
+                      {/* Status badge */}
+                      {isComplete ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Complete</span>
+                      ) : isNotStarted ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Not started · {daysUntilStart}d away</span>
+                      ) : isOverduePast ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Overdue</span>
+                      ) : days !== null && days <= 30 ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{days === 0 ? 'Due today' : `${days}d left`}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Active</span>
                       )}
-                      {goal.deadline && (
-                        <p className={`text-xs ${days !== null && days < 30 ? 'text-amber-500 font-medium' : 'text-gray-400'}`}>
-                          {isComplete ? 'Completed' : days !== null && days < 0 ? 'Overdue' : days === 0 ? 'Due today' : `${days}d left`}
-                          {' · '}{new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {/* Date range */}
+                      {(goal.startDate || goal.deadline) && (
+                        <p className="text-[11px] text-gray-400">
+                          {goal.startDate
+                            ? new Date(goal.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : 'Now'}
+                          {' → '}
+                          {goal.deadline
+                            ? new Date(goal.deadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : 'No end'}
+                          {planMonths !== null && ` · ${Math.round(planMonths)}mo`}
                         </p>
                       )}
                     </div>
@@ -363,12 +387,17 @@ export function SavingsGoals() {
                     <div className="bg-amber-50 rounded-xl px-3 py-2 col-span-2">
                       <p className="text-[10px] text-amber-600 uppercase font-semibold tracking-wide">Needed / month</p>
                       <p className="text-sm font-bold text-amber-700 mt-0.5">{fmt(moNeeded)}</p>
+                      {planMonths !== null && (
+                        <p className="text-[10px] text-amber-500 mt-0.5">
+                          over {Math.round(planMonths)}-month {isNotStarted ? 'plan period' : 'remaining'}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {/* Daily savings alert when deadline is close */}
-                {!isComplete && days !== null && days > 0 && days <= 30 && (
+                {/* Daily savings alert when deadline is close and goal is active */}
+                {!isComplete && !isNotStarted && days !== null && days > 0 && days <= 30 && (
                   <div className="bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 mb-1 flex items-center gap-2">
                     <span className="text-red-500 text-base">⚡</span>
                     <p className="text-xs text-red-700">

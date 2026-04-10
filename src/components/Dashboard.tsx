@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
   BarChart,
   Bar,
-  Legend,
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, Calendar, RepeatIcon, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 
@@ -65,17 +67,6 @@ export function Dashboard() {
 
   const netSavings = totalIncome - totalExpenses;
 
-  // ── This-month actuals (includes auto-generated recurring) ───────────
-  const thisMonthData = useMemo(() => {
-    const key = monthKey(new Date());
-    let income = 0, expenses = 0;
-    transactions.forEach((t) => {
-      if (monthKey(new Date(t.date)) !== key) return;
-      if (t.type === 'income' || t.type === 'refund') income += t.amount;
-      else if (t.type === 'expense') expenses += t.amount;
-    });
-    return { income, expenses, net: income - expenses };
-  }, [transactions]);
 
   const totalGoalProgress = useMemo(() => {
     if (!goals.length) return 0;
@@ -149,7 +140,12 @@ export function Dashboard() {
     };
 
     return {
-      chartData: orderedKeys.map((k, i) => ({ name: labels[i], ...buckets[k] })),
+      chartData: orderedKeys.map((k, i) => ({
+        name: labels[i],
+        income: buckets[k].income,
+        expense: buckets[k].expense,
+        net: buckets[k].income - buckets[k].expense,
+      })),
       chartTitle: spans[chartSpan],
     };
   }, [transactions, chartSpan]);
@@ -331,30 +327,6 @@ export function Dashboard() {
         />
       </div>
 
-      {/* This Month row */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1">
-          <Calendar className="w-3.5 h-3.5" />
-          This Month (actual to date, incl. recurring)
-        </p>
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">Income</p>
-            <p className="text-lg font-bold text-emerald-600 truncate">{fmt(thisMonthData.income)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">Expenses</p>
-            <p className="text-lg font-bold text-red-500 truncate">{fmt(thisMonthData.expenses)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">Net</p>
-            <p className={`text-lg font-bold truncate ${thisMonthData.net >= 0 ? 'text-blue-600' : 'text-orange-500'}`}>
-              {fmt(thisMonthData.net)}
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Projections */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-5">
         <div className="flex items-center gap-2">
@@ -505,28 +477,38 @@ export function Dashboard() {
             </div>
           </div>
           <p className="text-xs text-gray-400 mb-3">{chartTitle}</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={chartData}>
+          <ResponsiveContainer width="100%" height={220}>
+            <ComposedChart data={chartData}>
               <defs>
                 <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={xAxisInterval} />
-              <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => fmtShort(v)} width={48} />
-              <Tooltip formatter={(v) => (typeof v === 'number' ? fmt(v) : v)} />
-              <Area type="monotone" dataKey="income" stroke="#10b981" fill="url(#incomeGrad)" strokeWidth={2} />
-              <Area type="monotone" dataKey="expense" stroke="#ef4444" fill="url(#expenseGrad)" strokeWidth={2} />
-            </AreaChart>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval={xAxisInterval} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
+                labelStyle={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}
+                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+              />
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
+              <Area type="monotone" dataKey="income" stroke="#10b981" fill="url(#incomeGrad)" strokeWidth={2} dot={false} name="income" />
+              <Area type="monotone" dataKey="expense" stroke="#ef4444" fill="url(#expenseGrad)" strokeWidth={2} dot={false} name="expense" />
+              <Line type="monotone" dataKey="net" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" name="net" />
+            </ComposedChart>
           </ResponsiveContainer>
-          <div className="flex gap-4 mt-2 justify-center text-xs text-gray-500">
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-emerald-500 inline-block" /> Income</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-500 inline-block" /> Expenses</span>
+          <div className="flex gap-4 mt-2.5 justify-center text-xs text-gray-400">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'rgba(16,185,129,0.3)', outline: '1.5px solid #10b981' }} />Income</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'rgba(239,68,68,0.3)', outline: '1.5px solid #ef4444' }} />Expenses</span>
+            <span className="flex items-center gap-1.5"><span className="w-5 inline-block" style={{ borderTop: '2px dashed #3b82f6' }} />Net</span>
           </div>
         </div>
 
@@ -550,23 +532,38 @@ export function Dashboard() {
           </div>
           {expenseByCategory.length ? (
             <>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={190}>
                 <PieChart>
-                  <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} dataKey="value">
+                  <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
                     {expenseByCategory.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="white" strokeWidth={2} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v) => (typeof v === 'number' ? fmt(v) : v)} />
+                  <Tooltip
+                    contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={(v: any) => {
+                      const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
+                      const val = typeof v === 'number' ? v : 0;
+                      return [`${fmt(val)} · ${total > 0 ? ((val / total) * 100).toFixed(1) : 0}%`];
+                    }}
+                    labelStyle={{ fontWeight: 600, color: '#374151' }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap gap-2 justify-center mt-1">
-                {expenseByCategory.slice(0, 6).map((e, i) => (
-                  <span key={e.name} className="flex items-center gap-1 text-xs text-gray-600">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                    {e.name}
-                  </span>
-                ))}
+              <div className="mt-3 space-y-1.5">
+                {expenseByCategory.slice(0, 5).map((e, i) => {
+                  const total = expenseByCategory.reduce((s, c) => s + c.value, 0);
+                  const pct = total > 0 ? (e.value / total) * 100 : 0;
+                  return (
+                    <div key={e.name} className="flex items-center gap-2 text-xs">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      <span className="flex-1 text-gray-600 truncate">{e.name}</span>
+                      <span className="text-gray-400 w-9 text-right shrink-0">{pct.toFixed(1)}%</span>
+                      <span className="font-semibold text-gray-700 w-16 text-right shrink-0">{fmt(e.value)}</span>
+                    </div>
+                  );
+                })}
               </div>
             </>
           ) : (
@@ -575,20 +572,34 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Bar Chart — mirrors the area chart time span */}
+      {/* Savings Breakdown */}
       {chartData.some((d) => d.income > 0 || d.expense > 0) && (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-700 mb-4 text-sm">Savings Breakdown — {chartTitle}</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} barGap={4}>
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={xAxisInterval} />
-              <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => fmtShort(v)} width={48} />
-              <Tooltip formatter={(v) => (typeof v === 'number' ? fmt(v) : v)} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} name="Income" />
-              <Bar dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} name="Expense" />
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-gray-700 text-sm">Monthly Breakdown</h3>
+            <p className="text-xs text-gray-400">{chartTitle}</p>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barGap={2} barCategoryGap="32%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval={xAxisInterval} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
+                labelStyle={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}
+                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+              />
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
+              <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} name="income" maxBarSize={36} />
+              <Bar dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} name="expense" maxBarSize={36} />
             </BarChart>
           </ResponsiveContainer>
+          <div className="flex gap-4 mt-2.5 justify-center text-xs text-gray-400">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />Income</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block" />Expenses</span>
+          </div>
         </div>
       )}
     </div>
@@ -603,20 +614,21 @@ interface SummaryCardProps {
 }
 
 function SummaryCard({ title, value, icon, color }: SummaryCardProps) {
-  const bg: Record<string, string> = {
-    emerald: 'bg-emerald-50 border-emerald-100',
-    red: 'bg-red-50 border-red-100',
-    blue: 'bg-blue-50 border-blue-100',
-    orange: 'bg-orange-50 border-orange-100',
-    purple: 'bg-purple-50 border-purple-100',
+  const accent: Record<string, string> = {
+    emerald: 'bg-emerald-500',
+    red:     'bg-red-400',
+    blue:    'bg-blue-500',
+    orange:  'bg-orange-400',
+    purple:  'bg-purple-500',
   };
   return (
-    <div className={`rounded-2xl p-4 border ${bg[color] ?? bg.blue}`}>
-      <div className="flex justify-between items-start mb-2">
-        <p className="text-xs text-gray-500">{title}</p>
-        {icon}
+    <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-start gap-3 overflow-hidden relative">
+      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${accent[color] ?? accent.blue}`} />
+      <div className="flex-1 min-w-0 pl-1">
+        <p className="text-xs text-gray-400 font-medium">{title}</p>
+        <p className="text-xl font-bold text-gray-800 mt-1 truncate">{value}</p>
       </div>
-      <p className="text-xl font-bold text-gray-800 truncate">{value}</p>
+      <div className="shrink-0 mt-0.5 opacity-80">{icon}</div>
     </div>
   );
 }
