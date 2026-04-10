@@ -1,10 +1,19 @@
 import { useState } from 'react';
-import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle, Pencil } from 'lucide-react';
+import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle, Pencil, RefreshCw, Minus } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
 
 const GOAL_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
+
+const MONTHLY_FACTOR: Record<string, number> = {
+  daily: 30.44,
+  weekly: 4.33,
+  biweekly: 2.17,
+  monthly: 1,
+  quarterly: 1 / 3,
+  yearly: 1 / 12,
+};
 
 interface GoalForm {
   name: string;
@@ -31,12 +40,14 @@ function daysUntil(dateStr: string): number {
 }
 
 export function SavingsGoals() {
-  const { goals, addGoal, updateGoal, deleteGoal, addTransaction, transactions } = useAppStore();
+  const { goals, addGoal, updateGoal, deleteGoal, addTransaction, transactions, regularSpendings } = useAppStore();
   const { fmt } = useCurrency();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
-  const [depositId, setDepositId] = useState<string | null>(null);
-  const [depositAmount, setDepositAmount] = useState('');
+  // action state: null = idle, 'deposit' or 'withdraw'
+  const [actionGoalId, setActionGoalId] = useState<string | null>(null);
+  const [actionMode, setActionMode] = useState<'deposit' | 'withdraw'>('deposit');
+  const [actionAmount, setActionAmount] = useState('');
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
   const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
   const [editForm, setEditForm] = useState<GoalForm>(EMPTY_FORM);
@@ -83,10 +94,8 @@ export function SavingsGoals() {
   }
 
   function handleDeposit(goal: SavingsGoal) {
-    const amt = parseFloat(depositAmount);
+    const amt = parseFloat(actionAmount);
     if (!amt || amt <= 0) return;
-    // Create an expense transaction tagged to this goal so it appears on dashboard expenses
-    // The store will auto-update goal.currentAmount for any tagged transaction
     addTransaction({
       id: crypto.randomUUID(),
       type: 'expense',
@@ -96,8 +105,25 @@ export function SavingsGoals() {
       date: new Date().toISOString(),
       goalId: goal.id,
     });
-    setDepositId(null);
-    setDepositAmount('');
+    setActionGoalId(null);
+    setActionAmount('');
+  }
+
+  function handleWithdraw(goal: SavingsGoal) {
+    const amt = parseFloat(actionAmount);
+    if (!amt || amt <= 0 || amt > goal.currentAmount) return;
+    addTransaction({
+      id: crypto.randomUUID(),
+      type: 'income',
+      amount: amt,
+      category: 'Goal Withdrawal',
+      description: `Withdrawal from ${goal.name}`,
+      date: new Date().toISOString(),
+      goalId: goal.id,
+      goalWithdrawal: true,
+    });
+    setActionGoalId(null);
+    setActionAmount('');
   }
 
   // goal.currentAmount is kept in sync by the store whenever a tagged transaction is added/deleted
@@ -410,33 +436,90 @@ export function SavingsGoals() {
                   <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-semibold">
                     <Check className="w-4 h-4" /> Goal Achieved!
                   </div>
-                ) : depositId === goal.id ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={depositAmount}
-                      onChange={(e) => setDepositAmount(e.target.value)}
-                      placeholder="Amount to add…"
-                      autoFocus
-                      className="flex-1 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
-                    />
-                    <button onClick={() => handleDeposit(goal)} className="bg-emerald-500 text-white px-3 py-2 rounded-xl text-sm cursor-pointer hover:bg-emerald-600">
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => setDepositId(null)} className="text-gray-400 hover:text-gray-600 px-2 cursor-pointer">
-                      <X className="w-4 h-4" />
-                    </button>
+                ) : actionGoalId === goal.id ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActionMode('deposit')}
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                          actionMode === 'deposit'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Deposit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActionMode('withdraw')}
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                          actionMode === 'withdraw'
+                            ? 'bg-red-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Withdraw
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={actionAmount}
+                        onChange={(e) => setActionAmount(e.target.value)}
+                        placeholder="Amount…"
+                        autoFocus
+                        className="flex-1 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                      />
+                      <button
+                        onClick={() => actionMode === 'deposit' ? handleDeposit(goal) : handleWithdraw(goal)}
+                        disabled={!actionAmount || parseFloat(actionAmount) <= 0 || (actionMode === 'withdraw' && parseFloat(actionAmount) > goal.currentAmount)}
+                        className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-2 rounded-xl text-sm cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => { setActionGoalId(null); setActionAmount(''); }} className="text-gray-400 hover:text-gray-600 px-2 cursor-pointer">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {actionMode === 'withdraw' && actionAmount && parseFloat(actionAmount) > goal.currentAmount && (
+                      <p className="text-xs text-red-500">Amount exceeds goal balance</p>
+                    )}
                   </div>
                 ) : (
                   <button
-                    onClick={() => { setDepositId(goal.id); setDepositAmount(''); }}
+                    onClick={() => { setActionGoalId(goal.id); setActionMode('deposit'); setActionAmount(''); }}
                     className="text-sm text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
                   >
-                    <Plus className="w-4 h-4" /> Add funds
+                    <Plus className="w-4 h-4" /> Add / Withdraw
                   </button>
                 )}
+
+                {/* Monthly recurring inflow */}
+                {(() => {
+                  const linked = regularSpendings.filter((r) => r.goalId === goal.id);
+                  if (linked.length === 0) return null;
+                  const monthlyIn  = linked.filter((r) => r.transactionType === 'income' ).reduce((s, r) => s + r.amount * (MONTHLY_FACTOR[r.frequency] ?? 1), 0);
+                  const monthlyOut = linked.filter((r) => r.transactionType === 'expense').reduce((s, r) => s + r.amount * (MONTHLY_FACTOR[r.frequency] ?? 1), 0);
+                  return (
+                    <div className="flex gap-2 mb-3">
+                      {monthlyIn > 0 && (
+                        <div className="flex items-center gap-1 bg-emerald-50 rounded-xl px-3 py-1.5">
+                          <RefreshCw className="w-3 h-3 text-emerald-500" />
+                          <p className="text-xs font-semibold text-emerald-700">+{fmt(monthlyIn)}/mo auto</p>
+                        </div>
+                      )}
+                      {monthlyOut > 0 && (
+                        <div className="flex items-center gap-1 bg-red-50 rounded-xl px-3 py-1.5">
+                          <Minus className="w-3 h-3 text-red-500" />
+                          <p className="text-xs font-semibold text-red-600">-{fmt(monthlyOut)}/mo auto</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Contribution history toggle */}
                 {(() => {
@@ -452,25 +535,27 @@ export function SavingsGoals() {
                         className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 cursor-pointer w-full"
                       >
                         {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                        {contributions.length} contribution{contributions.length !== 1 ? 's' : ''}
+                        {contributions.length} transaction{contributions.length !== 1 ? 's' : ''}
                         <span className="ml-auto font-semibold text-gray-500">
-                          {fmt(contributions.reduce((s, t) => s + t.amount, 0))} total
+                          {fmt(contributions.filter((t) => !t.goalWithdrawal).reduce((s, t) => s + t.amount, 0))} deposited
                         </span>
                       </button>
                       {isOpen && (
                         <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
                           {contributions.map((t) => (
                             <div key={t.id} className="flex items-center gap-2 text-xs">
-                              {t.type === 'expense' ? (
-                                <ArrowDownCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              {t.goalWithdrawal ? (
+                                <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
                               ) : (
-                                <ArrowUpCircle className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                               )}
                               <span className="flex-1 text-gray-600 truncate">{t.description || t.category}</span>
                               <span className="text-gray-400 shrink-0">
                                 {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </span>
-                              <span className="font-semibold text-emerald-600 shrink-0">+{fmt(t.amount)}</span>
+                              <span className={`font-semibold shrink-0 ${t.goalWithdrawal ? 'text-red-500' : 'text-emerald-600'}`}>
+                                {t.goalWithdrawal ? '-' : '+'}{fmt(t.amount)}
+                              </span>
                             </div>
                           ))}
                         </div>

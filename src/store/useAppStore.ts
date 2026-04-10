@@ -14,7 +14,7 @@ function clean<T extends object>(obj: T): T {
     Object.entries(obj).filter(([, v]) => v !== undefined)
   ) as T;
 }
-import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Frequency, Pot } from '../types';
+import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Frequency } from '../types';
 
 // ─── Recurring-transaction auto-generation ───────────────────────────────────
 function getOccurrences(frequency: Frequency, from: Date, to: Date): Date[] {
@@ -85,7 +85,6 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[], goal
         date: date.toISOString(),
         recurringId: item.id,
         ...(item.goalId ? { goalId: item.goalId } : {}),
-        ...(item.potId ? { potId: item.potId } : {}),
       };
       await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
       if (item.goalId) {
@@ -117,7 +116,6 @@ interface AppState {
   goals: SavingsGoal[];
   regularSpendings: RegularSpending[];
   upcomingItems: UpcomingItem[];
-  pots: Pot[];
   loading: boolean;
   currency: string;
   setCurrency: (code: string) => void;
@@ -134,16 +132,12 @@ interface AppState {
   addUpcomingItem: (item: UpcomingItem) => void;
   updateUpcomingItem: (item: UpcomingItem) => void;
   deleteUpcomingItem: (id: string) => void;
-  addPot: (pot: Pot) => void;
-  updatePot: (pot: Pot) => void;
-  deletePot: (id: string) => void;
 }
 
 let unsubTransactions: (() => void) | null = null;
 let unsubGoals: (() => void) | null = null;
 let unsubRegular: (() => void) | null = null;
 let unsubUpcoming: (() => void) | null = null;
-let unsubPots: (() => void) | null = null;
 
 export const useAppStore = create<AppState>()((set, get) => ({
   uid: null,
@@ -151,7 +145,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
   goals: [],
   regularSpendings: [],
   upcomingItems: [],
-  pots: [],
   loading: false,
   currency: localStorage.getItem('currency') ?? 'USD',
 
@@ -165,10 +158,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
     unsubGoals?.();
     unsubRegular?.();
     unsubUpcoming?.();
-    unsubPots?.();
 
     if (!uid) {
-      set({ uid: null, transactions: [], goals: [], regularSpendings: [], upcomingItems: [], pots: [], loading: false });
+      set({ uid: null, transactions: [], goals: [], regularSpendings: [], upcomingItems: [], loading: false });
       return;
     }
 
@@ -188,13 +180,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
       collection(db, `users/${uid}/goals`),
       (snap) => {
         set({ goals: snap.docs.map((d) => d.data() as SavingsGoal) });
-      }
-    );
-
-    unsubPots = onSnapshot(
-      collection(db, `users/${uid}/pots`),
-      (snap) => {
-        set({ pots: snap.docs.map((d) => d.data() as Pot) });
       }
     );
 
@@ -222,11 +207,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const uid = get().uid;
     if (!uid) return;
     void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), clean(tx));
-    // Auto-update goal currentAmount for any transaction tagged to a goal
+    // goalWithdrawal = true means money leaves the goal (subtract); otherwise adds to goal
     if (tx.goalId) {
       const goal = get().goals.find((g) => g.id === tx.goalId);
       if (goal) {
-        const updated = { ...goal, currentAmount: goal.currentAmount + tx.amount };
+        const delta = tx.goalWithdrawal ? -tx.amount : tx.amount;
+        const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount + delta) };
         void setDoc(doc(db, `users/${uid}/goals/${tx.goalId}`), clean(updated));
       }
     }
@@ -239,11 +225,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Adjust goal currentAmounts when goalId or amount changes
     const oldTx = get().transactions.find((t) => t.id === tx.id);
     const goalDeltas: Record<string, number> = {};
+    // Reverse the old transaction's effect
     if (oldTx?.goalId) {
-      goalDeltas[oldTx.goalId] = (goalDeltas[oldTx.goalId] ?? 0) - oldTx.amount;
+      goalDeltas[oldTx.goalId] = (goalDeltas[oldTx.goalId] ?? 0) + (oldTx.goalWithdrawal ? oldTx.amount : -oldTx.amount);
     }
+    // Apply the new transaction's effect
     if (tx.goalId) {
-      goalDeltas[tx.goalId] = (goalDeltas[tx.goalId] ?? 0) + tx.amount;
+      goalDeltas[tx.goalId] = (goalDeltas[tx.goalId] ?? 0) + (tx.goalWithdrawal ? -tx.amount : tx.amount);
     }
     for (const [goalId, delta] of Object.entries(goalDeltas)) {
       if (delta === 0) continue;
@@ -260,12 +248,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
   deleteTransaction: (id) => {
     const uid = get().uid;
     if (!uid) return;
-    // Reverse goal contribution if the transaction was tagged
+    // Reverse goal effect when deleting
     const tx = get().transactions.find((t) => t.id === id);
     if (tx?.goalId) {
       const goal = get().goals.find((g) => g.id === tx.goalId);
       if (goal) {
-        const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount - tx.amount) };
+        // Reversal: if it was a withdrawal (subtracted), add back; if a deposit (added), subtract back
+        const delta = tx.goalWithdrawal ? tx.amount : -tx.amount;
+        const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount + delta) };
         void setDoc(doc(db, `users/${uid}/goals/${tx.goalId}`), clean(updated));
       }
     }
@@ -331,21 +321,4 @@ export const useAppStore = create<AppState>()((set, get) => ({
     void deleteDoc(doc(db, `users/${uid}/upcomingItems/${id}`));
   },
 
-  addPot: (pot) => {
-    const uid = get().uid;
-    if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/pots/${pot.id}`), clean(pot));
-  },
-
-  updatePot: (pot) => {
-    const uid = get().uid;
-    if (!uid) return;
-    void setDoc(doc(db, `users/${uid}/pots/${pot.id}`), clean(pot));
-  },
-
-  deletePot: (id) => {
-    const uid = get().uid;
-    if (!uid) return;
-    void deleteDoc(doc(db, `users/${uid}/pots/${id}`));
-  },
 }));
