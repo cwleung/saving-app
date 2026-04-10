@@ -1,8 +1,8 @@
-import { LogOut, TrendingUp, LayoutDashboard, List, Target, RepeatIcon, Clock, ScrollText } from 'lucide-react';
+import { LogOut, TrendingUp, LayoutDashboard, List, Target, RepeatIcon, Clock, ScrollText, PiggyBank } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { CURRENCIES } from '../lib/currency';
 
-export type Tab = 'Dashboard' | 'Transactions' | 'Goals' | 'Regular' | 'Upcoming' | 'Changelog';
+export type Tab = 'Dashboard' | 'Transactions' | 'Goals' | 'Pots' | 'Regular' | 'Upcoming' | 'Changelog';
 
 interface HeaderProps {
   onLogout: () => void;
@@ -14,13 +14,14 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'Dashboard',    label: 'Dashboard',    icon: <LayoutDashboard className="w-4 h-4" /> },
   { id: 'Transactions', label: 'Transactions', icon: <List className="w-4 h-4" /> },
   { id: 'Goals',        label: 'Goals',        icon: <Target className="w-4 h-4" /> },
+  { id: 'Pots',         label: 'Pots',         icon: <PiggyBank className="w-4 h-4" /> },
   { id: 'Regular',      label: 'Regular',      icon: <RepeatIcon className="w-4 h-4" /> },
   { id: 'Upcoming',     label: 'Upcoming',     icon: <Clock className="w-4 h-4" /> },
   { id: 'Changelog',    label: 'Changelog',    icon: <ScrollText className="w-4 h-4" /> },
 ];
 
 // Bottom nav shows these tabs (most important)
-const BOTTOM_TABS: Tab[] = ['Dashboard', 'Transactions', 'Goals', 'Regular', 'Upcoming'];
+const BOTTOM_TABS: Tab[] = ['Dashboard', 'Transactions', 'Goals', 'Pots', 'Regular', 'Upcoming'];
 
 export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
   const currency = useAppStore((s) => s.currency);

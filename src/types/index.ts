@@ -10,8 +10,16 @@ export interface Transaction {
   goalId?: string;
   /** true when this transaction withdraws money back out of a goal (reduces goal balance) */
   goalWithdrawal?: boolean;
+  potId?: string;
   recurringId?: string;
   upcomingId?: string;
+}
+
+export interface Pot {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
 }
 
 export interface SavingsGoal {
@@ -38,6 +46,7 @@ export interface RegularSpending {
   description?: string;
   lastProcessedDate?: string;
   goalId?: string;
+  potId?: string;
 }
 
 export interface UpcomingItem {

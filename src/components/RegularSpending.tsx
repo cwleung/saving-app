@@ -41,6 +41,7 @@ interface FormData {
   transactionType: 'income' | 'expense';
   description: string;
   goalId: string;
+  potId: string;
 }
 
 const EMPTY_FORM: FormData = {
@@ -53,6 +54,7 @@ const EMPTY_FORM: FormData = {
   transactionType: 'expense',
   description: '',
   goalId: '',
+  potId: '',
 };
 
 // Small helper — clearable date input with explicit ×  button
@@ -95,7 +97,7 @@ function DateField({
 }
 
 export function RegularSpendingPage() {
-  const { regularSpendings, goals, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
+  const { regularSpendings, goals, pots, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<RegularSpending | null>(null);
@@ -121,6 +123,7 @@ export function RegularSpendingPage() {
       transactionType: item.transactionType,
       description: item.description ?? '',
       goalId: item.goalId ?? '',
+      potId: item.potId ?? '',
     });
     setShowForm(true);
   }
@@ -138,6 +141,7 @@ export function RegularSpendingPage() {
       transactionType: form.transactionType,
       description: form.description || undefined,
       goalId: form.goalId || undefined,
+      potId: form.potId || undefined,
     };
     if (editItem) updateRegularSpending(item);
     else addRegularSpending(item);
@@ -214,15 +218,22 @@ export function RegularSpendingPage() {
                     const freqLabel = FREQUENCIES.find((f) => f.value === item.frequency)?.shortLabel ?? '';
                     return (
                       <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.goalId ? 'bg-violet-100' : bgClass}`}>
-                          {item.goalId
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.potId ? 'bg-indigo-100' : item.goalId ? 'bg-violet-100' : bgClass}`}>
+                          {item.potId
+                            ? <PiggyBank className="w-4 h-4 text-indigo-500" />
+                            : item.goalId
                             ? <PiggyBank className="w-4 h-4 text-violet-500" />
                             : <RepeatIcon className={`w-4 h-4 ${colorClass}`} />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <p className="font-semibold text-gray-900 text-sm truncate">{item.name}</p>
-                            {item.goalId && (
+                            {item.potId && (
+                              <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full shrink-0">
+                                {pots.find((p) => p.id === item.potId)?.name ?? 'Pot'}
+                              </span>
+                            )}
+                            {!item.potId && item.goalId && (
                               <span className="text-[10px] font-semibold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">
                                 {goals.find((g) => g.id === item.goalId)?.name ?? 'Goal'}
                               </span>
@@ -249,6 +260,7 @@ export function RegularSpendingPage() {
                               description: item.name,
                               date: new Date().toISOString(),
                               ...(item.goalId ? { goalId: item.goalId } : {}),
+                              ...(item.potId  ? { potId:  item.potId  } : {}),
                             })}
                             title="Log as transaction today"
                             className="w-8 h-8 flex items-center justify-center rounded-full text-gray-300 hover:text-emerald-500 hover:bg-emerald-50 cursor-pointer transition-colors"
@@ -419,7 +431,7 @@ export function RegularSpendingPage() {
                   </label>
                   <select
                     value={form.goalId}
-                    onChange={(e) => setForm((f) => ({ ...f, goalId: e.target.value }))}
+                    onChange={(e) => setForm((f) => ({ ...f, goalId: e.target.value, potId: '' }))}
                     className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
                   >
                     <option value="">— None —</option>
@@ -427,9 +439,29 @@ export function RegularSpendingPage() {
                       <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </select>
-                  {form.goalId && form.transactionType === 'income' && (
-                    <p className="text-[11px] text-violet-600 mt-1">
-                      Each recurring income occurrence will automatically add to this goal's balance.
+                </div>
+              )}
+
+              {/* Pot selector — both income and expense */}
+              {pots.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    {form.transactionType === 'income' ? 'Auto-deposit into Pot' : 'Spend from Pot'}{' '}
+                    <span className="normal-case font-normal text-gray-300">(optional)</span>
+                  </label>
+                  <select
+                    value={form.potId}
+                    onChange={(e) => setForm((f) => ({ ...f, potId: e.target.value, goalId: '' }))}
+                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+                  >
+                    <option value="">— None —</option>
+                    {pots.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {form.potId && form.transactionType === 'income' && (
+                    <p className="text-[11px] text-indigo-600 mt-1">
+                      Each recurring income will automatically add to this pot's balance.
                     </p>
                   )}
                 </div>

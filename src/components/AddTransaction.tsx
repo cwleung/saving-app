@@ -34,7 +34,7 @@ interface AddTransactionProps {
 }
 
 export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
-  const { addTransaction, updateTransaction, goals } = useAppStore();
+  const { addTransaction, updateTransaction, goals, pots } = useAppStore();
   const { currency } = useCurrency();
   const isEdit = !!initialData;
 
@@ -48,9 +48,11 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
       : new Date().toISOString().split('T')[0]
   );
   const [goalId, setGoalId] = useState(initialData?.goalId ?? '');
+  const [potId, setPotId] = useState(initialData?.potId ?? '');
 
   const categories = CATEGORIES[type];
   const showGoalSelector = (type === 'income' || type === 'expense' || type === 'refund') && goals.length > 0;
+  const showPotSelector = (type === 'income' || type === 'expense') && pots.length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +64,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
       description,
       date: new Date(date).toISOString(),
       goalId: goalId || undefined,
+      potId: potId || undefined,
     };
     if (isEdit) {
       updateTransaction(tx);
@@ -100,6 +103,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
                   setType(t);
                   setCategory('');
                   setGoalId('');
+                  setPotId('');
                 }}
                 className={`py-2 text-xs font-medium transition-colors cursor-pointer ${
                   type === t ? TYPE_COLORS[t] : 'bg-white text-gray-500 hover:bg-gray-50'
@@ -169,12 +173,31 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
               </label>
               <select
                 value={goalId}
-                onChange={(e) => setGoalId(e.target.value)}
+                onChange={(e) => { setGoalId(e.target.value); if (e.target.value) setPotId(''); }}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
               >
                 <option value="">None</option>
                 {goals.map((g) => (
                   <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {showPotSelector && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">
+                {type === 'income' ? 'Deposit into pot' : 'Spend from pot'}{' '}
+                <span className="text-gray-400">(optional)</span>
+              </label>
+              <select
+                value={potId}
+                onChange={(e) => { setPotId(e.target.value); if (e.target.value) setGoalId(''); }}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+              >
+                <option value="">None</option>
+                {pots.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             </div>
