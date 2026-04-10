@@ -41,6 +41,7 @@ interface FormData {
   transactionType: 'income' | 'expense';
   description: string;
   goalId: string;
+  potId: string;
 }
 
 const EMPTY_FORM: FormData = {
@@ -53,6 +54,7 @@ const EMPTY_FORM: FormData = {
   transactionType: 'expense',
   description: '',
   goalId: '',
+  potId: '',
 };
 
 // Small helper — clearable date input with explicit ×  button
@@ -95,7 +97,7 @@ function DateField({
 }
 
 export function RegularSpendingPage() {
-  const { regularSpendings, goals, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
+  const { regularSpendings, goals, pots, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<RegularSpending | null>(null);
@@ -121,6 +123,7 @@ export function RegularSpendingPage() {
       transactionType: item.transactionType,
       description: item.description ?? '',
       goalId: item.goalId ?? '',
+      potId: item.potId ?? '',
     });
     setShowForm(true);
   }
@@ -138,6 +141,7 @@ export function RegularSpendingPage() {
       transactionType: form.transactionType,
       description: form.description || undefined,
       goalId: form.goalId || undefined,
+      potId: form.potId || undefined,
     };
     if (editItem) updateRegularSpending(item);
     else addRegularSpending(item);
@@ -214,17 +218,24 @@ export function RegularSpendingPage() {
                     const freqLabel = FREQUENCIES.find((f) => f.value === item.frequency)?.shortLabel ?? '';
                     return (
                       <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.goalId ? 'bg-violet-100' : bgClass}`}>
-                          {item.goalId
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.potId ? 'bg-indigo-100' : item.goalId ? 'bg-violet-100' : bgClass}`}>
+                          {item.potId
+                            ? <PiggyBank className="w-4 h-4 text-indigo-500" />
+                            : item.goalId
                             ? <PiggyBank className="w-4 h-4 text-violet-500" />
                             : <RepeatIcon className={`w-4 h-4 ${colorClass}`} />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <p className="font-semibold text-gray-900 text-sm truncate">{item.name}</p>
-                            {item.goalId && (
+                            {item.potId && (
+                              <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full shrink-0">
+                                {pots.find((p) => p.id === item.potId)?.name ?? 'Pot'}
+                              </span>
+                            )}
+                            {!item.potId && item.goalId && (
                               <span className="text-[10px] font-semibold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">
-                                {goals.find((g) => g.id === item.goalId)?.name ?? 'Pot'}
+                                {goals.find((g) => g.id === item.goalId)?.name ?? 'Goal'}
                               </span>
                             )}
                           </div>
@@ -249,6 +260,7 @@ export function RegularSpendingPage() {
                               description: item.name,
                               date: new Date().toISOString(),
                               ...(item.goalId ? { goalId: item.goalId } : {}),
+                              ...(item.potId ? { potId: item.potId } : {}),
                             })}
                             title="Log as transaction today"
                             className="w-8 h-8 flex items-center justify-center rounded-full text-gray-300 hover:text-emerald-500 hover:bg-emerald-50 cursor-pointer transition-colors"
@@ -410,11 +422,11 @@ export function RegularSpendingPage() {
                 />
               </div>
 
-              {/* Goal / Pot (expense only) */}
+              {/* Goal selector — expense only */}
               {form.transactionType === 'expense' && goals.length > 0 && (
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                    Fund a Pot <span className="normal-case font-normal text-gray-300">(optional)</span>
+                    Contribute to Goal <span className="normal-case font-normal text-gray-300">(optional)</span>
                   </label>
                   <select
                     value={form.goalId}
@@ -424,6 +436,26 @@ export function RegularSpendingPage() {
                     <option value="">— None —</option>
                     {goals.map((g) => (
                       <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Pot selector — income or expense */}
+              {pots.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    {form.transactionType === 'income' ? 'Deposit into Pot' : 'Spend from Pot'}{' '}
+                    <span className="normal-case font-normal text-gray-300">(optional)</span>
+                  </label>
+                  <select
+                    value={form.potId}
+                    onChange={(e) => setForm((f) => ({ ...f, potId: e.target.value }))}
+                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+                  >
+                    <option value="">— None —</option>
+                    {pots.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 </div>

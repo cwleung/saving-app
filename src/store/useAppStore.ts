@@ -14,7 +14,7 @@ function clean<T extends object>(obj: T): T {
     Object.entries(obj).filter(([, v]) => v !== undefined)
   ) as T;
 }
-import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Frequency } from '../types';
+import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Frequency, Pot } from '../types';
 
 // ─── Recurring-transaction auto-generation ───────────────────────────────────
 function getOccurrences(frequency: Frequency, from: Date, to: Date): Date[] {
@@ -85,6 +85,7 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[], goal
         date: date.toISOString(),
         recurringId: item.id,
         ...(item.goalId ? { goalId: item.goalId } : {}),
+        ...(item.potId ? { potId: item.potId } : {}),
       };
       await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
       if (item.goalId) {
@@ -116,6 +117,7 @@ interface AppState {
   goals: SavingsGoal[];
   regularSpendings: RegularSpending[];
   upcomingItems: UpcomingItem[];
+  pots: Pot[];
   loading: boolean;
   currency: string;
   setCurrency: (code: string) => void;
@@ -132,12 +134,16 @@ interface AppState {
   addUpcomingItem: (item: UpcomingItem) => void;
   updateUpcomingItem: (item: UpcomingItem) => void;
   deleteUpcomingItem: (id: string) => void;
+  addPot: (pot: Pot) => void;
+  updatePot: (pot: Pot) => void;
+  deletePot: (id: string) => void;
 }
 
 let unsubTransactions: (() => void) | null = null;
 let unsubGoals: (() => void) | null = null;
 let unsubRegular: (() => void) | null = null;
 let unsubUpcoming: (() => void) | null = null;
+let unsubPots: (() => void) | null = null;
 
 export const useAppStore = create<AppState>()((set, get) => ({
   uid: null,
@@ -145,6 +151,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   goals: [],
   regularSpendings: [],
   upcomingItems: [],
+  pots: [],
   loading: false,
   currency: localStorage.getItem('currency') ?? 'USD',
 
@@ -158,9 +165,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
     unsubGoals?.();
     unsubRegular?.();
     unsubUpcoming?.();
+    unsubPots?.();
 
     if (!uid) {
-      set({ uid: null, transactions: [], goals: [], regularSpendings: [], upcomingItems: [], loading: false });
+      set({ uid: null, transactions: [], goals: [], regularSpendings: [], upcomingItems: [], pots: [], loading: false });
       return;
     }
 
@@ -180,6 +188,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
       collection(db, `users/${uid}/goals`),
       (snap) => {
         set({ goals: snap.docs.map((d) => d.data() as SavingsGoal) });
+      }
+    );
+
+    unsubPots = onSnapshot(
+      collection(db, `users/${uid}/pots`),
+      (snap) => {
+        set({ pots: snap.docs.map((d) => d.data() as Pot) });
       }
     );
 
@@ -314,5 +329,23 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const uid = get().uid;
     if (!uid) return;
     void deleteDoc(doc(db, `users/${uid}/upcomingItems/${id}`));
+  },
+
+  addPot: (pot) => {
+    const uid = get().uid;
+    if (!uid) return;
+    void setDoc(doc(db, `users/${uid}/pots/${pot.id}`), clean(pot));
+  },
+
+  updatePot: (pot) => {
+    const uid = get().uid;
+    if (!uid) return;
+    void setDoc(doc(db, `users/${uid}/pots/${pot.id}`), clean(pot));
+  },
+
+  deletePot: (id) => {
+    const uid = get().uid;
+    if (!uid) return;
+    void deleteDoc(doc(db, `users/${uid}/pots/${id}`));
   },
 }));

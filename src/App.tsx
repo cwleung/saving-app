@@ -7,6 +7,7 @@ import { Header, type Tab } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { TransactionList } from './components/TransactionList';
 import { SavingsGoals } from './components/SavingsGoals';
+import { PotsPage } from './components/Pots';
 import { AddTransaction } from './components/AddTransaction';
 import { RegularSpendingPage } from './components/RegularSpending';
 import { UpcomingSpendingPage } from './components/UpcomingSpending';
@@ -51,6 +52,7 @@ function App() {
           <TransactionList onAddTransaction={() => setShowAddTransaction(true)} />
         )}
         {activeTab === 'Goals' && <SavingsGoals />}
+        {activeTab === 'Pots' && <PotsPage />}
         {activeTab === 'Regular' && <RegularSpendingPage />}
         {activeTab === 'Upcoming' && <UpcomingSpendingPage />}
         {activeTab === 'Changelog' && <VersionLogPage />}

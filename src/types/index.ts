@@ -8,8 +8,16 @@ export interface Transaction {
   description: string;
   date: string;
   goalId?: string;
+  potId?: string;
   recurringId?: string;
   upcomingId?: string;
+}
+
+export interface Pot {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
 }
 
 export interface SavingsGoal {
@@ -36,6 +44,7 @@ export interface RegularSpending {
   description?: string;
   lastProcessedDate?: string;
   goalId?: string;
+  potId?: string;
 }
 
 export interface UpcomingItem {
