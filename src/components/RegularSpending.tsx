@@ -97,7 +97,7 @@ function DateField({
 }
 
 export function RegularSpendingPage() {
-  const { regularSpendings, goals, pots, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
+  const { regularSpendings, pots, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<RegularSpending | null>(null);
@@ -218,11 +218,9 @@ export function RegularSpendingPage() {
                     const freqLabel = FREQUENCIES.find((f) => f.value === item.frequency)?.shortLabel ?? '';
                     return (
                       <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.potId ? 'bg-indigo-100' : item.goalId ? 'bg-violet-100' : bgClass}`}>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.potId ? 'bg-indigo-100' : bgClass}`}>
                           {item.potId
                             ? <PiggyBank className="w-4 h-4 text-indigo-500" />
-                            : item.goalId
-                            ? <PiggyBank className="w-4 h-4 text-violet-500" />
                             : <RepeatIcon className={`w-4 h-4 ${colorClass}`} />}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -231,11 +229,6 @@ export function RegularSpendingPage() {
                             {item.potId && (
                               <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full shrink-0">
                                 {pots.find((p) => p.id === item.potId)?.name ?? 'Pot'}
-                              </span>
-                            )}
-                            {!item.potId && item.goalId && (
-                              <span className="text-[10px] font-semibold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">
-                                {goals.find((g) => g.id === item.goalId)?.name ?? 'Goal'}
                               </span>
                             )}
                           </div>
@@ -421,26 +414,6 @@ export function RegularSpendingPage() {
                   className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
                 />
               </div>
-
-              {/* Goal selector — both income and expense */}
-              {goals.length > 0 && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                    {form.transactionType === 'income' ? 'Auto-deposit into Goal' : 'Tag to Goal'}{' '}
-                    <span className="normal-case font-normal text-gray-300">(optional)</span>
-                  </label>
-                  <select
-                    value={form.goalId}
-                    onChange={(e) => setForm((f) => ({ ...f, goalId: e.target.value, potId: '' }))}
-                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
-                  >
-                    <option value="">— None —</option>
-                    {goals.map((g) => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Pot selector — both income and expense */}
               {pots.length > 0 && (
