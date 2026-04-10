@@ -19,7 +19,6 @@ const MONTHLY_FACTOR: Record<string, number> = {
 interface GoalForm {
   name: string;
   targetAmount: string;
-  currentAmount: string;
   startDate: string;
   deadline: string;
   /** existing pot id, or '__new__' to create one */
@@ -30,7 +29,6 @@ interface GoalForm {
 const EMPTY_FORM: GoalForm = {
   name: '',
   targetAmount: '',
-  currentAmount: '',
   startDate: '',
   deadline: '',
   potId: '__new__',
@@ -76,7 +74,7 @@ export function SavingsGoals() {
       id: crypto.randomUUID(),
       name: form.name,
       targetAmount: parseFloat(form.targetAmount),
-      currentAmount: parseFloat(form.currentAmount) || 0,
+      currentAmount: 0,
       color: GOAL_COLORS[colorIndex],
       potId: resolvedPotId,
       startDate: form.startDate || undefined,
@@ -91,7 +89,6 @@ export function SavingsGoals() {
     setEditForm({
       name: goal.name,
       targetAmount: String(goal.targetAmount),
-      currentAmount: String(goal.currentAmount),
       startDate: goal.startDate ?? '',
       deadline: goal.deadline ?? '',
       potId: goal.potId ?? '__new__',
@@ -116,7 +113,7 @@ export function SavingsGoals() {
       ...editGoal,
       name: editForm.name,
       targetAmount: parseFloat(editForm.targetAmount),
-      currentAmount: parseFloat(editForm.currentAmount) || 0,
+      currentAmount: editGoal.currentAmount,
       potId: resolvedPotId || editGoal.potId,
       startDate: editForm.startDate || undefined,
       deadline: editForm.deadline || undefined,
@@ -276,25 +273,15 @@ export function SavingsGoals() {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
             />
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="number"
-                placeholder="Target amount"
-                min="1"
-                required
-                value={form.targetAmount}
-                onChange={(e) => setForm((f) => ({ ...f, targetAmount: e.target.value }))}
-                className="bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
-              />
-              <input
-                type="number"
-                placeholder="Already saved"
-                min="0"
-                value={form.currentAmount}
-                onChange={(e) => setForm((f) => ({ ...f, currentAmount: e.target.value }))}
-                className="bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
-              />
-            </div>
+            <input
+              type="number"
+              placeholder="Target amount"
+              min="1"
+              required
+              value={form.targetAmount}
+              onChange={(e) => setForm((f) => ({ ...f, targetAmount: e.target.value }))}
+              className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+            />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
@@ -657,8 +644,7 @@ export function SavingsGoals() {
                 onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
               />
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div>
                   <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Target Amount</label>
                   <input
                     type="number"
@@ -670,18 +656,6 @@ export function SavingsGoals() {
                     className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Amount Saved</label>
-                  <input
-                    type="number"
-                    placeholder="Currently saved"
-                    min="0"
-                    value={editForm.currentAmount}
-                    onChange={(e) => setEditForm((f) => ({ ...f, currentAmount: e.target.value }))}
-                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
-                  />
-                </div>
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
