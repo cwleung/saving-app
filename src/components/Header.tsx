@@ -31,10 +31,13 @@ export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-2">
+            <button
+              onClick={() => onTabChange('Dashboard')}
+              className="flex items-center gap-2 cursor-pointer hover:opacity-75 transition-opacity"
+            >
               <TrendingUp className="w-5 h-5 text-emerald-600" />
               <span className="font-bold text-gray-800">Savings Tracker</span>
-            </div>
+            </button>
 
             {/* Desktop nav */}
             <nav className="hidden md:flex gap-1">
@@ -84,7 +87,7 @@ export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
                 className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline text-xs">Lock</span>
+                <span className="hidden sm:inline text-xs">Lock out</span>
               </button>
             </div>
           </div>

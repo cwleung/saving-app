@@ -72,6 +72,13 @@ function App() {
       {showAddTransaction && (
         <AddTransaction onClose={() => setShowAddTransaction(false)} />
       )}
+
+      {/* Build info footer */}
+      <footer className="pb-24 md:pb-4 text-center">
+        <p className="text-[10px] text-gray-300 select-none">
+          {__GIT_BRANCH__}@{__GIT_HASH__} &middot; deployed {new Date(__BUILD_TIME__).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </p>
+      </footer>
     </div>
   );
 }

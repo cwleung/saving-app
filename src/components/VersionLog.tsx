@@ -9,9 +9,23 @@ interface VersionEntry {
 
 const VERSION_LOG: VersionEntry[] = [
   {
+    version: '1.4.0',
+    date: 'April 10, 2026',
+
+    changes: [
+      { category: 'Feature', text: 'Pots: every Goal must now be backed by a Pot — pick an existing one or auto-create on goal creation' },
+      { category: 'Feature', text: 'Pots: set a starting balance when creating a pot (for existing money)' },
+      { category: 'Fix', text: 'Pot balance now correctly increases when you deposit (deposit = expense in P&L, just like putting money in a real savings pot)' },
+      { category: 'UX', text: 'Deposit / Withdraw redesigned: clear tabbed ↑ Deposit / ↓ Withdraw selector with a full-width amount field and Confirm button (both Goals and Pots)' },
+      { category: 'UX', text: 'Goal cards show a coloured pot badge so you always know which pot backs each goal' },
+      { category: 'UX', text: 'Top-left logo now navigates back to Dashboard from any tab' },
+      { category: 'UX', text: 'Lock button renamed to "Lock out" for clarity' },
+      { category: 'UX', text: 'Footer shows git commit hash, branch, and deploy timestamp' },
+    ],
+  },
+  {
     version: '1.3.0',
     date: 'April 9, 2026',
-    isLatest: true,
     changes: [
       { category: 'Fix', text: 'Regular Spending: start date is now optional (defaults to today)' },
       { category: 'Feature', text: 'Charts support daily (1W, 1M) and weekly (3M) granularity — just like stock charts' },
