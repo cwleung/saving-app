@@ -28,6 +28,8 @@ export interface SavingsGoal {
   targetAmount: number;
   currentAmount: number;
   color: string;
+  /** The pot this goal is backed by (every new goal must have one) */
+  potId?: string;
   startDate?: string;
   deadline?: string;
 }

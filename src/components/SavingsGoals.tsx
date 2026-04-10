@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle, Pencil, RefreshCw, Minus } from 'lucide-react';
+import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle, Pencil, RefreshCw, Minus, PiggyBank } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
 
 const GOAL_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
+const POT_COLORS  = ['#6366f1', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6'];
 
 const MONTHLY_FACTOR: Record<string, number> = {
   daily: 30.44,
@@ -21,6 +22,9 @@ interface GoalForm {
   currentAmount: string;
   startDate: string;
   deadline: string;
+  /** existing pot id, or '__new__' to create one */
+  potId: string;
+  newPotName: string;
 }
 
 const EMPTY_FORM: GoalForm = {
@@ -29,6 +33,8 @@ const EMPTY_FORM: GoalForm = {
   currentAmount: '',
   startDate: '',
   deadline: '',
+  potId: '__new__',
+  newPotName: '',
 };
 
 function daysUntil(dateStr: string): number {
@@ -40,7 +46,7 @@ function daysUntil(dateStr: string): number {
 }
 
 export function SavingsGoals() {
-  const { goals, addGoal, updateGoal, deleteGoal, addTransaction, transactions, regularSpendings } = useAppStore();
+  const { goals, addGoal, updateGoal, deleteGoal, addTransaction, transactions, regularSpendings, pots, addPot } = useAppStore();
   const { fmt } = useCurrency();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
@@ -55,12 +61,24 @@ export function SavingsGoals() {
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     const colorIndex = goals.length % GOAL_COLORS.length;
+    // Resolve pot: use existing or create a new one
+    let resolvedPotId = form.potId;
+    if (form.potId === '__new__') {
+      const potName = form.newPotName.trim() || form.name;
+      resolvedPotId = crypto.randomUUID();
+      addPot({
+        id: resolvedPotId,
+        name: potName,
+        color: POT_COLORS[pots.length % POT_COLORS.length],
+      });
+    }
     addGoal({
       id: crypto.randomUUID(),
       name: form.name,
       targetAmount: parseFloat(form.targetAmount),
       currentAmount: parseFloat(form.currentAmount) || 0,
       color: GOAL_COLORS[colorIndex],
+      potId: resolvedPotId,
       startDate: form.startDate || undefined,
       deadline: form.deadline || undefined,
     });
@@ -76,17 +94,30 @@ export function SavingsGoals() {
       currentAmount: String(goal.currentAmount),
       startDate: goal.startDate ?? '',
       deadline: goal.deadline ?? '',
+      potId: goal.potId ?? '__new__',
+      newPotName: goal.name,
     });
   }
 
   function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!editGoal) return;
+    let resolvedPotId = editForm.potId;
+    if (editForm.potId === '__new__') {
+      const potName = editForm.newPotName.trim() || editForm.name;
+      resolvedPotId = crypto.randomUUID();
+      addPot({
+        id: resolvedPotId,
+        name: potName,
+        color: POT_COLORS[pots.length % POT_COLORS.length],
+      });
+    }
     updateGoal({
       ...editGoal,
       name: editForm.name,
       targetAmount: parseFloat(editForm.targetAmount),
       currentAmount: parseFloat(editForm.currentAmount) || 0,
+      potId: resolvedPotId || editGoal.potId,
       startDate: editForm.startDate || undefined,
       deadline: editForm.deadline || undefined,
     });
@@ -104,6 +135,7 @@ export function SavingsGoals() {
       description: `Deposit to ${goal.name}`,
       date: new Date().toISOString(),
       goalId: goal.id,
+      ...(goal.potId ? { potId: goal.potId } : {}),
     });
     setActionGoalId(null);
     setActionAmount('');
@@ -121,6 +153,7 @@ export function SavingsGoals() {
       date: new Date().toISOString(),
       goalId: goal.id,
       goalWithdrawal: true,
+      ...(goal.potId ? { potId: goal.potId } : {}),
     });
     setActionGoalId(null);
     setActionAmount('');
@@ -286,6 +319,33 @@ export function SavingsGoals() {
                 />
               </div>
             </div>
+
+            {/* Pot selector */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                Backed by Pot
+              </label>
+              <select
+                value={form.potId}
+                onChange={(e) => setForm((f) => ({ ...f, potId: e.target.value, newPotName: e.target.value === '__new__' ? f.name : '' }))}
+                className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+              >
+                <option value="__new__">✨ Create a new pot with this goal</option>
+                {pots.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {form.potId === '__new__' && (
+                <input
+                  type="text"
+                  placeholder={`Pot name (default: "${form.name || 'same as goal'}")`}
+                  value={form.newPotName}
+                  onChange={(e) => setForm((f) => ({ ...f, newPotName: e.target.value }))}
+                  className="mt-2 w-full bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+                />
+              )}
+            </div>
+
             <button
               type="submit"
               className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer shadow-sm"
@@ -333,7 +393,16 @@ export function SavingsGoals() {
                 <div className="flex justify-between items-start mb-3">
                   <div className="min-w-0 flex-1 pr-2">
                     <h3 className="font-bold text-gray-900 truncate">{goal.name}</h3>
-                    <div className="mt-1 space-y-0.5">
+                    {/* Pot badge */}
+                    {goal.potId && (() => {
+                      const pot = pots.find((p) => p.id === goal.potId);
+                      return pot ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 mb-0.5" style={{ background: pot.color + '20', color: pot.color }}>
+                          <PiggyBank className="w-2.5 h-2.5" /> {pot.name}
+                        </span>
+                      ) : null;
+                    })()}
+                    <div className="mt-0.5 space-y-0.5">
                       {/* Status badge */}
                       {isComplete ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Complete</span>
@@ -638,6 +707,33 @@ export function SavingsGoals() {
                   />
                 </div>
               </div>
+
+              {/* Pot selector */}
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Backed by Pot
+                </label>
+                <select
+                  value={editForm.potId}
+                  onChange={(e) => setEditForm((f) => ({ ...f, potId: e.target.value, newPotName: e.target.value === '__new__' ? f.name : '' }))}
+                  className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+                >
+                  <option value="__new__">✨ Create a new pot</option>
+                  {pots.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                {editForm.potId === '__new__' && (
+                  <input
+                    type="text"
+                    placeholder={`Pot name (default: "${editForm.name || 'same as goal'}")`}
+                    value={editForm.newPotName}
+                    onChange={(e) => setEditForm((f) => ({ ...f, newPotName: e.target.value }))}
+                    className="mt-2 w-full bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+                  />
+                )}
+              </div>
+
               <button
                 type="submit"
                 className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer shadow-sm"
