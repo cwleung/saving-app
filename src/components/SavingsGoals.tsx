@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle, Pencil } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
@@ -31,13 +31,15 @@ function daysUntil(dateStr: string): number {
 }
 
 export function SavingsGoals() {
-  const { goals, addGoal, deleteGoal, addTransaction, transactions } = useAppStore();
+  const { goals, addGoal, updateGoal, deleteGoal, addTransaction, transactions } = useAppStore();
   const { fmt } = useCurrency();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
   const [depositId, setDepositId] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState('');
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
+  const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
+  const [editForm, setEditForm] = useState<GoalForm>(EMPTY_FORM);
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +55,31 @@ export function SavingsGoals() {
     });
     setForm(EMPTY_FORM);
     setShowAdd(false);
+  }
+
+  function openEdit(goal: SavingsGoal) {
+    setEditGoal(goal);
+    setEditForm({
+      name: goal.name,
+      targetAmount: String(goal.targetAmount),
+      currentAmount: String(goal.currentAmount),
+      startDate: goal.startDate ?? '',
+      deadline: goal.deadline ?? '',
+    });
+  }
+
+  function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editGoal) return;
+    updateGoal({
+      ...editGoal,
+      name: editForm.name,
+      targetAmount: parseFloat(editForm.targetAmount),
+      currentAmount: parseFloat(editForm.currentAmount) || 0,
+      startDate: editForm.startDate || undefined,
+      deadline: editForm.deadline || undefined,
+    });
+    setEditGoal(null);
   }
 
   function handleDeposit(goal: SavingsGoal) {
@@ -284,9 +311,14 @@ export function SavingsGoals() {
                       )}
                     </div>
                   </div>
-                  <button onClick={() => deleteGoal(goal.id)} className="text-gray-300 hover:text-red-400 cursor-pointer shrink-0">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => openEdit(goal)} className="text-gray-300 hover:text-blue-400 cursor-pointer">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => deleteGoal(goal.id)} className="text-gray-300 hover:text-red-400 cursor-pointer">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Progress bar */}
@@ -420,6 +452,94 @@ export function SavingsGoals() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Edit Goal Modal */}
+      {editGoal && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4 z-50"
+          onClick={(e) => e.target === e.currentTarget && setEditGoal(null)}
+        >
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-2xl max-h-[95dvh] overflow-y-auto">
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-9 h-1 bg-gray-200 rounded-full" />
+            </div>
+            <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">Edit Goal</h2>
+              <button
+                onClick={() => setEditGoal(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 cursor-pointer hover:bg-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="px-5 py-5 space-y-3">
+              <input
+                type="text"
+                placeholder="Goal name"
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Target Amount</label>
+                  <input
+                    type="number"
+                    placeholder="Target amount"
+                    min="1"
+                    required
+                    value={editForm.targetAmount}
+                    onChange={(e) => setEditForm((f) => ({ ...f, targetAmount: e.target.value }))}
+                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Amount Saved</label>
+                  <input
+                    type="number"
+                    placeholder="Currently saved"
+                    min="0"
+                    value={editForm.currentAmount}
+                    onChange={(e) => setEditForm((f) => ({ ...f, currentAmount: e.target.value }))}
+                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    Start Date <span className="normal-case font-normal text-gray-300">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm((f) => ({ ...f, startDate: e.target.value }))}
+                    className="w-full bg-gray-50 rounded-xl px-3 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    End Date <span className="normal-case font-normal text-gray-300">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.deadline}
+                    onChange={(e) => setEditForm((f) => ({ ...f, deadline: e.target.value }))}
+                    className="w-full bg-gray-50 rounded-xl px-3 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer shadow-sm"
+              >
+                Save Changes
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

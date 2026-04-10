@@ -174,6 +174,13 @@ export function Dashboard() {
   // ── Projections ──────────────────────────────────────────────────────
   const projections = useMemo(() => {
     const now = new Date();
+    const thisMonthK = monthKey(now);
+
+    // Days elapsed and progress through the current month
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dayOfMonth = now.getDate();
+    const monthProgress = dayOfMonth / daysInMonth; // 0–1
+
     const last3Keys = [0, 1, 2].map((i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       return monthKey(d);
@@ -181,43 +188,51 @@ export function Dashboard() {
 
     let monthIncome = 0;
     let monthExpense = 0;
+    let goalDeposits3 = 0;
     const txMonths = new Set<string>();
 
-    // Exclude auto-generated recurring transactions — they're captured via recurringMonthlyIncome
+    // Exclude auto-generated recurring transactions — they're already in recurringMonthly*
     transactions.forEach((t) => {
       if (t.recurringId) return;
       const k = monthKey(new Date(t.date));
       txMonths.add(k);
       if (last3Keys.includes(k)) {
         if (t.type === 'income' || t.type === 'refund') monthIncome += t.amount;
-        else if (t.type === 'expense') monthExpense += t.amount;
+        else if (t.type === 'expense') {
+          monthExpense += t.amount;
+          if (t.goalId) goalDeposits3 += t.amount;
+        }
       }
     });
 
     const activeMonths = Math.min(3, Math.max(txMonths.size, 1));
     const avgMonthlyIncome = monthIncome / activeMonths;
     const avgMonthlyExpense = monthExpense / activeMonths;
+    const avgMonthlyGoalDeposits = goalDeposits3 / activeMonths;
     const avgMonthlySavings = avgMonthlyIncome - avgMonthlyExpense;
     const annualSavings = avgMonthlySavings * 12;
     const savingsRate = avgMonthlyIncome > 0 ? (avgMonthlySavings / avgMonthlyIncome) * 100 : 0;
 
-    // Spending trend
+    // Spending trend (non-recurring, non-goal expenses only)
     const lastMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      if (t.type !== 'expense' || t.recurringId) return;
+      if (t.type !== 'expense' || t.recurringId || t.goalId) return;
       const k = monthKey(new Date(t.date));
       if (k === lastMonthK) lastExp += t.amount;
       if (k === prevMonthK) prevExp += t.amount;
     });
     const spendingTrend = prevExp > 0 ? ((lastExp - prevExp) / prevExp) * 100 : 0;
 
-    // Goal projections
+    // Goal projections — use avg monthly savings (non-recurring surplus)
     const goalProjections = goals.map((g) => {
-      const remaining = g.targetAmount - g.currentAmount;
+      const remaining = Math.max(0, g.targetAmount - g.currentAmount);
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
-      return { name: g.name, monthsNeeded };
+      const onTrack = g.deadline
+        ? monthsNeeded <= Math.max(0, (new Date(g.deadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30))
+        : null;
+      return { id: g.id, name: g.name, monthsNeeded, remaining, onTrack };
     });
 
     // Regular spending projections
@@ -244,9 +259,23 @@ export function Dashboard() {
         else upcomingIncome30 += u.amount;
       });
 
+    // Projected full-month totals
+    const projIncome  = avgMonthlyIncome + recurringMonthlyIncome + upcomingIncome30;
+    const projExpense = avgMonthlyExpense + recurringMonthlyExpense + upcomingExpense30;
+    const projNet     = projIncome - projExpense;
+
+    // This month actual so far (from thisMonthData — passed via closure below)
+    const thisMonthActualIncome = transactions
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && (t.type === 'income' || t.type === 'refund'))
+      .reduce((s, t) => s + t.amount, 0);
+    const thisMonthActualExpense = transactions
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense')
+      .reduce((s, t) => s + t.amount, 0);
+
     return {
       avgMonthlyIncome,
       avgMonthlyExpense,
+      avgMonthlyGoalDeposits,
       avgMonthlySavings,
       annualSavings,
       savingsRate,
@@ -256,6 +285,14 @@ export function Dashboard() {
       recurringMonthlyIncome,
       upcomingExpense30,
       upcomingIncome30,
+      projIncome,
+      projExpense,
+      projNet,
+      monthProgress,
+      dayOfMonth,
+      daysInMonth,
+      thisMonthActualIncome,
+      thisMonthActualExpense,
     };
   }, [transactions, goals, regularSpendings, upcomingItems]);
 
@@ -319,97 +356,130 @@ export function Dashboard() {
       </div>
 
       {/* Projections */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-5">
+        <div className="flex items-center gap-2">
           <BarChart2 className="w-4 h-4 text-gray-500" />
           <h3 className="font-semibold text-gray-700">Projections & Insights</h3>
         </div>
 
-        {/* Combined This Month projection */}
-        {(projections.recurringMonthlyExpense > 0 || projections.upcomingExpense30 > 0 || projections.avgMonthlyExpense > 0) && (() => {
-          const projIncome  = projections.avgMonthlyIncome  + projections.recurringMonthlyIncome  + projections.upcomingIncome30;
-          const projExpense = projections.avgMonthlyExpense + projections.recurringMonthlyExpense + projections.upcomingExpense30;
-          const projNet     = projIncome - projExpense;
-          return (
-            <>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium">Projected This Month</p>
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <ProjectionCard label="Projected Income"  value={fmt(projIncome)}  sub="avg + recurring + upcoming" color="emerald" />
-                <ProjectionCard label="Projected Expenses" value={fmt(projExpense)} sub="avg + recurring + upcoming" color="red" />
-                <ProjectionCard label="Projected Net" value={fmt(projNet)} sub="this month estimate" color={projNet >= 0 ? 'blue' : 'orange'} />
+        {/* ── This Month: Actual vs Projected ── */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">This Month</p>
+            <span className="text-[11px] text-gray-400">Day {projections.dayOfMonth} of {projections.daysInMonth} · {Math.round(projections.monthProgress * 100)}% through</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {/* Income */}
+            <div className="bg-emerald-50 rounded-xl p-3">
+              <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Income</p>
+              <p className="text-sm font-bold text-emerald-700">{fmt(projections.thisMonthActualIncome)}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">of {fmt(projections.projIncome)} proj.</p>
+              <div className="mt-1.5 w-full bg-emerald-100 rounded-full h-1">
+                <div className="h-1 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, projections.projIncome > 0 ? (projections.thisMonthActualIncome / projections.projIncome) * 100 : 0)}%` }} />
               </div>
-            </>
-          );
-        })()}
-
-        {/* Transaction-based projections */}
-        <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium">Based on last 3 months</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <ProjectionCard label="Avg Monthly Income"   value={fmt(projections.avgMonthlyIncome)}   sub="transactions" color="emerald" />
-          <ProjectionCard label="Avg Monthly Expense"  value={fmt(projections.avgMonthlyExpense)}  sub="transactions" color="red" />
-          <ProjectionCard label="Projected Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
-          <ProjectionCard label="Savings Rate" value={`${projections.savingsRate.toFixed(1)}%`} sub="of monthly income" color={projections.savingsRate >= 20 ? 'emerald' : projections.savingsRate >= 10 ? 'amber' : 'red'} />
+            </div>
+            {/* Expenses */}
+            <div className="bg-red-50 rounded-xl p-3">
+              <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Expenses</p>
+              <p className="text-sm font-bold text-red-600">{fmt(projections.thisMonthActualExpense)}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">of {fmt(projections.projExpense)} proj.</p>
+              <div className="mt-1.5 w-full bg-red-100 rounded-full h-1">
+                <div className="h-1 rounded-full bg-red-500" style={{ width: `${Math.min(100, projections.projExpense > 0 ? (projections.thisMonthActualExpense / projections.projExpense) * 100 : 0)}%` }} />
+              </div>
+            </div>
+            {/* Net */}
+            <div className={`rounded-xl p-3 ${projections.projNet >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
+              <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Net</p>
+              <p className={`text-sm font-bold ${projections.projNet >= 0 ? 'text-blue-700' : 'text-orange-600'}`}>
+                {fmt(projections.thisMonthActualIncome - projections.thisMonthActualExpense)}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">proj. {fmt(projections.projNet)}</p>
+              <div className="mt-1.5 w-full bg-gray-100 rounded-full h-1">
+                <div className="h-1 rounded-full bg-blue-400" style={{ width: `${Math.round(projections.monthProgress * 100)}%` }} />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Recurring spending projections */}
-        {(projections.recurringMonthlyExpense > 0 || projections.recurringMonthlyIncome > 0) && (
-          <>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium flex items-center gap-1">
-              <RepeatIcon className="w-3 h-3" /> Recurring (monthly equivalent)
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        {/* ── Monthly Averages (last 3 months) ── */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Monthly Averages — Last 3 Months</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="manual transactions" color="emerald" />
+            <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="incl. goal deposits" color="red" />
+            <ProjectionCard label="Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
+            <ProjectionCard
+              label="Savings Rate"
+              value={`${projections.savingsRate.toFixed(1)}%`}
+              sub="of monthly income"
+              color={projections.savingsRate >= 20 ? 'emerald' : projections.savingsRate >= 10 ? 'amber' : 'red'}
+            />
+          </div>
+          {projections.avgMonthlyGoalDeposits > 0 && (
+            <div className="mt-2">
+              <ProjectionCard label="Avg Goal Deposits" value={fmt(projections.avgMonthlyGoalDeposits)} sub="per month to goals" color="purple" />
+            </div>
+          )}
+        </div>
+
+        {/* ── Recurring & Upcoming breakdown ── */}
+        {(projections.recurringMonthlyExpense > 0 || projections.recurringMonthlyIncome > 0 || projections.upcomingExpense30 > 0 || projections.upcomingIncome30 > 0) && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Committed Costs</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {projections.recurringMonthlyIncome > 0 && (
-                <ProjectionCard label="Recurring Income" value={fmt(projections.recurringMonthlyIncome)} sub="per month" color="emerald" />
+                <ProjectionCard label={<span className="flex items-center gap-1"><RepeatIcon className="w-3 h-3" /> Recurring In</span>} value={fmt(projections.recurringMonthlyIncome)} sub="per month" color="emerald" />
               )}
               {projections.recurringMonthlyExpense > 0 && (
-                <ProjectionCard label="Recurring Expenses" value={fmt(projections.recurringMonthlyExpense)} sub="per month" color="red" />
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Upcoming items */}
-        {(projections.upcomingExpense30 > 0 || projections.upcomingIncome30 > 0) && (
-          <>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium flex items-center gap-1">
-              <Clock className="w-3 h-3" /> Next 30 Days (scheduled)
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-              {projections.upcomingExpense30 > 0 && (
-                <ProjectionCard label="Upcoming Expenses" value={fmt(projections.upcomingExpense30)} sub="due ≤ 30 days" color="red" />
+                <ProjectionCard label={<span className="flex items-center gap-1"><RepeatIcon className="w-3 h-3" /> Recurring Out</span>} value={fmt(projections.recurringMonthlyExpense)} sub="per month" color="red" />
               )}
               {projections.upcomingIncome30 > 0 && (
-                <ProjectionCard label="Upcoming Income" value={fmt(projections.upcomingIncome30)} sub="due ≤ 30 days" color="emerald" />
+                <ProjectionCard label={<span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Upcoming In</span>} value={fmt(projections.upcomingIncome30)} sub="next 30 days" color="emerald" />
+              )}
+              {projections.upcomingExpense30 > 0 && (
+                <ProjectionCard label={<span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Upcoming Out</span>} value={fmt(projections.upcomingExpense30)} sub="next 30 days" color="red" />
               )}
             </div>
-          </>
-        )}
-
-        {projections.spendingTrend !== 0 && (
-          <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-1 ${
-            projections.spendingTrend > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
-          }`}>
-            {projections.spendingTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month
           </div>
         )}
 
-        {projections.goalProjections.length > 0 && projections.avgMonthlySavings > 0 && (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs font-medium text-gray-500 flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Time to reach goals
+        {/* ── Trend badge + Goal timeline ── */}
+        <div className="flex flex-wrap gap-2 items-start">
+          {projections.spendingTrend !== 0 && (
+            <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-1 ${
+              projections.spendingTrend > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
+            }`}>
+              {projections.spendingTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month
+            </div>
+          )}
+        </div>
+
+        {projections.goalProjections.filter((g) => g.remaining > 0).length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <Target className="w-3 h-3" /> Goal Timeline
             </p>
-            {projections.goalProjections.map((g) => (
-              <div key={g.name} className="flex justify-between items-center text-xs text-gray-600">
-                <span className="truncate max-w-[60%]">{g.name}</span>
-                <span className="font-medium text-gray-800">
-                  {g.monthsNeeded === Infinity ? 'N/A'
-                    : g.monthsNeeded <= 0 ? '✓ Reached'
-                    : g.monthsNeeded < 12 ? `~${g.monthsNeeded}mo`
-                    : `~${(g.monthsNeeded / 12).toFixed(1)}yr`}
-                </span>
-              </div>
-            ))}
+            <div className="space-y-2">
+              {projections.goalProjections.filter((g) => g.remaining > 0).map((g) => (
+                <div key={g.id} className="flex justify-between items-center text-xs">
+                  <span className="text-gray-600 truncate max-w-[55%]">{g.name}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {g.onTrack !== null && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${g.onTrack ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                        {g.onTrack ? 'On track' : 'Behind'}
+                      </span>
+                    )}
+                    <span className="font-medium text-gray-800">
+                      {g.monthsNeeded === Infinity ? 'N/A'
+                        : g.monthsNeeded <= 0 ? '✓ Reached'
+                        : g.monthsNeeded < 12 ? `~${g.monthsNeeded}mo`
+                        : `~${(g.monthsNeeded / 12).toFixed(1)}yr`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -552,7 +622,7 @@ function SummaryCard({ title, value, icon, color }: SummaryCardProps) {
 }
 
 interface ProjectionCardProps {
-  label: string;
+  label: React.ReactNode;
   value: string;
   sub: string;
   color: string;
@@ -565,6 +635,7 @@ function ProjectionCard({ label, value, sub, color }: ProjectionCardProps) {
     blue: 'text-blue-700',
     orange: 'text-orange-500',
     amber: 'text-amber-600',
+    purple: 'text-purple-700',
   };
   return (
     <div className="bg-gray-50 rounded-xl p-3">
