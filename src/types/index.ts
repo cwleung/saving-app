@@ -18,6 +18,7 @@ export interface SavingsGoal {
   targetAmount: number;
   currentAmount: number;
   color: string;
+  startDate?: string;
   deadline?: string;
 }
 

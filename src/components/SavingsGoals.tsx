@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle } from 'lucide-react';
+import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
@@ -10,6 +10,7 @@ interface GoalForm {
   name: string;
   targetAmount: string;
   currentAmount: string;
+  startDate: string;
   deadline: string;
 }
 
@@ -17,6 +18,7 @@ const EMPTY_FORM: GoalForm = {
   name: '',
   targetAmount: '',
   currentAmount: '',
+  startDate: '',
   deadline: '',
 };
 
@@ -46,6 +48,7 @@ export function SavingsGoals() {
       targetAmount: parseFloat(form.targetAmount),
       currentAmount: parseFloat(form.currentAmount) || 0,
       color: GOAL_COLORS[colorIndex],
+      startDate: form.startDate || undefined,
       deadline: form.deadline || undefined,
     });
     setForm(EMPTY_FORM);
@@ -55,10 +58,11 @@ export function SavingsGoals() {
   function handleDeposit(goal: SavingsGoal) {
     const amt = parseFloat(depositAmount);
     if (!amt || amt <= 0) return;
-    // Create an income transaction tagged to this goal — the store will auto-update goal.currentAmount
+    // Create an expense transaction tagged to this goal so it appears on dashboard expenses
+    // The store will auto-update goal.currentAmount for any tagged transaction
     addTransaction({
       id: crypto.randomUUID(),
-      type: 'income',
+      type: 'expense',
       amount: amt,
       category: 'Savings Goal',
       description: `Deposit to ${goal.name}`,
@@ -202,16 +206,29 @@ export function SavingsGoals() {
                 className="bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                Deadline <span className="normal-case font-normal text-gray-300">(optional)</span>
-              </label>
-              <input
-                type="date"
-                value={form.deadline}
-                onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
-                className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Start Date <span className="normal-case font-normal text-gray-300">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                  className="w-full bg-gray-50 rounded-xl px-3 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  End Date <span className="normal-case font-normal text-gray-300">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={form.deadline}
+                  onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
+                  className="w-full bg-gray-50 rounded-xl px-3 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                />
+              </div>
             </div>
             <button
               type="submit"
@@ -253,12 +270,19 @@ export function SavingsGoals() {
                 <div className="flex justify-between items-start mb-3">
                   <div className="min-w-0 flex-1 pr-2">
                     <h3 className="font-bold text-gray-900 truncate">{goal.name}</h3>
-                    {goal.deadline && (
-                      <p className={`text-xs mt-0.5 ${days !== null && days < 30 ? 'text-amber-500 font-medium' : 'text-gray-400'}`}>
-                        {isComplete ? `Completed` : days !== null && days < 0 ? 'Overdue' : days === 0 ? 'Due today' : `${days}d left`}
-                        {' · '}{new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    )}
+                    <div className="flex flex-wrap gap-x-2 mt-0.5">
+                      {goal.startDate && (
+                        <p className="text-xs text-gray-400">
+                          From {new Date(goal.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      )}
+                      {goal.deadline && (
+                        <p className={`text-xs ${days !== null && days < 30 ? 'text-amber-500 font-medium' : 'text-gray-400'}`}>
+                          {isComplete ? 'Completed' : days !== null && days < 0 ? 'Overdue' : days === 0 ? 'Due today' : `${days}d left`}
+                          {' · '}{new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <button onClick={() => deleteGoal(goal.id)} className="text-gray-300 hover:text-red-400 cursor-pointer shrink-0">
                     <Trash2 className="w-4 h-4" />
@@ -356,7 +380,7 @@ export function SavingsGoals() {
                 {/* Contribution history toggle */}
                 {(() => {
                   const contributions = transactions
-                    .filter((t) => t.goalId === goal.id && (t.type === 'income' || t.type === 'refund'))
+                    .filter((t) => t.goalId === goal.id)
                     .sort((a, b) => b.date.localeCompare(a.date));
                   if (contributions.length === 0) return null;
                   const isOpen = expandedGoalId === goal.id;
@@ -376,7 +400,11 @@ export function SavingsGoals() {
                         <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
                           {contributions.map((t) => (
                             <div key={t.id} className="flex items-center gap-2 text-xs">
-                              <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              {t.type === 'expense' ? (
+                                <ArrowDownCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              ) : (
+                                <ArrowUpCircle className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              )}
                               <span className="flex-1 text-gray-600 truncate">{t.description || t.category}</span>
                               <span className="text-gray-400 shrink-0">
                                 {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

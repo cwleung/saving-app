@@ -191,8 +191,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const uid = get().uid;
     if (!uid) return;
     void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), clean(tx));
-    // Auto-update goal currentAmount when a transaction is tagged to a goal
-    if (tx.goalId && (tx.type === 'income' || tx.type === 'refund')) {
+    // Auto-update goal currentAmount for any transaction tagged to a goal
+    if (tx.goalId) {
       const goal = get().goals.find((g) => g.id === tx.goalId);
       if (goal) {
         const updated = { ...goal, currentAmount: goal.currentAmount + tx.amount };
@@ -208,10 +208,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Adjust goal currentAmounts when goalId or amount changes
     const oldTx = get().transactions.find((t) => t.id === tx.id);
     const goalDeltas: Record<string, number> = {};
-    if (oldTx?.goalId && (oldTx.type === 'income' || oldTx.type === 'refund')) {
+    if (oldTx?.goalId) {
       goalDeltas[oldTx.goalId] = (goalDeltas[oldTx.goalId] ?? 0) - oldTx.amount;
     }
-    if (tx.goalId && (tx.type === 'income' || tx.type === 'refund')) {
+    if (tx.goalId) {
       goalDeltas[tx.goalId] = (goalDeltas[tx.goalId] ?? 0) + tx.amount;
     }
     for (const [goalId, delta] of Object.entries(goalDeltas)) {
@@ -231,7 +231,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (!uid) return;
     // Reverse goal contribution if the transaction was tagged
     const tx = get().transactions.find((t) => t.id === id);
-    if (tx?.goalId && (tx.type === 'income' || tx.type === 'refund')) {
+    if (tx?.goalId) {
       const goal = get().goals.find((g) => g.id === tx.goalId);
       if (goal) {
         const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount - tx.amount) };
