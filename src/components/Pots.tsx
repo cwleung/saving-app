@@ -83,13 +83,31 @@ export function PotsPage() {
 
   function openEdit(pot: Pot) {
     setEditPot(pot);
-    setEditForm({ name: pot.name, description: pot.description ?? '', initialAmount: '' });
+    const bal = potBalance(pot.id);
+    setEditForm({ name: pot.name, description: pot.description ?? '', initialAmount: String(bal === 0 ? '' : bal) });
   }
 
   function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!editPot) return;
     updatePot({ ...editPot, name: editForm.name, description: editForm.description || undefined });
+    // Balance adjustment: if the user changed the balance field, create a correction transaction
+    const newBal = parseFloat(editForm.initialAmount);
+    if (!isNaN(newBal) && newBal >= 0) {
+      const currentBal = potBalance(editPot.id);
+      const diff = newBal - currentBal;
+      if (Math.abs(diff) > 0.001) {
+        addTransaction({
+          id: crypto.randomUUID(),
+          type: diff > 0 ? 'transfer' : 'income',
+          amount: Math.abs(diff),
+          category: 'Balance Adjustment',
+          description: `Balance adjustment — ${editForm.name}`,
+          date: new Date().toISOString(),
+          potId: editPot.id,
+        });
+      }
+    }
     setEditPot(null);
   }
 
@@ -418,6 +436,21 @@ export function PotsPage() {
                 onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
                 className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
               />
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Current balance <span className="normal-case font-normal text-gray-300">(edit to adjust)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={editForm.initialAmount}
+                  onChange={(e) => setEditForm((f) => ({ ...f, initialAmount: e.target.value }))}
+                  className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">A correction transaction will be recorded if this differs from the current balance.</p>
+              </div>
               <button
                 type="submit"
                 className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer shadow-sm"

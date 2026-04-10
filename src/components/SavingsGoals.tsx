@@ -46,6 +46,16 @@ function daysUntil(dateStr: string): number {
 export function SavingsGoals() {
   const { goals, addGoal, updateGoal, deleteGoal, addTransaction, transactions, regularSpendings, pots, addPot } = useAppStore();
   const { fmt } = useCurrency();
+
+  function potBalance(potId: string) {
+    return transactions
+      .filter((t) => t.potId === potId)
+      .reduce((sum, t) => {
+        if (t.type === 'expense' || t.type === 'transfer') return sum + t.amount;
+        if (t.type === 'income') return sum - t.amount;
+        return sum;
+      }, 0);
+  }
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
   // action state: null = idle, 'deposit' or 'withdraw'
@@ -74,7 +84,7 @@ export function SavingsGoals() {
       id: crypto.randomUUID(),
       name: form.name,
       targetAmount: parseFloat(form.targetAmount),
-      currentAmount: 0,
+      currentAmount: form.potId === '__new__' ? 0 : potBalance(form.potId),
       color: GOAL_COLORS[colorIndex],
       potId: resolvedPotId,
       startDate: form.startDate || undefined,
