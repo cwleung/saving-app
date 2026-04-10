@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Pencil, X, RepeatIcon, ArrowRightLeft } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, RepeatIcon, ArrowRightLeft, PiggyBank } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { RegularSpending, Frequency } from '../types';
@@ -40,6 +40,7 @@ interface FormData {
   endDate: string;
   transactionType: 'income' | 'expense';
   description: string;
+  goalId: string;
 }
 
 const EMPTY_FORM: FormData = {
@@ -51,6 +52,7 @@ const EMPTY_FORM: FormData = {
   endDate: '',
   transactionType: 'expense',
   description: '',
+  goalId: '',
 };
 
 // Small helper — clearable date input with explicit ×  button
@@ -93,7 +95,7 @@ function DateField({
 }
 
 export function RegularSpendingPage() {
-  const { regularSpendings, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
+  const { regularSpendings, goals, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<RegularSpending | null>(null);
@@ -118,6 +120,7 @@ export function RegularSpendingPage() {
       endDate: item.endDate ?? '',
       transactionType: item.transactionType,
       description: item.description ?? '',
+      goalId: item.goalId ?? '',
     });
     setShowForm(true);
   }
@@ -134,6 +137,7 @@ export function RegularSpendingPage() {
       endDate: form.endDate || undefined,
       transactionType: form.transactionType,
       description: form.description || undefined,
+      goalId: form.goalId || undefined,
     };
     if (editItem) updateRegularSpending(item);
     else addRegularSpending(item);
@@ -210,11 +214,20 @@ export function RegularSpendingPage() {
                     const freqLabel = FREQUENCIES.find((f) => f.value === item.frequency)?.shortLabel ?? '';
                     return (
                       <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${bgClass}`}>
-                          <RepeatIcon className={`w-4 h-4 ${colorClass}`} />
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.goalId ? 'bg-violet-100' : bgClass}`}>
+                          {item.goalId
+                            ? <PiggyBank className="w-4 h-4 text-violet-500" />
+                            : <RepeatIcon className={`w-4 h-4 ${colorClass}`} />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 text-sm truncate">{item.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{item.name}</p>
+                            {item.goalId && (
+                              <span className="text-[10px] font-semibold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">
+                                {goals.find((g) => g.id === item.goalId)?.name ?? 'Pot'}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-400 mt-0.5">
                             {item.category}
                             {item.endDate && ` · ends ${new Date(item.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`}
@@ -235,6 +248,7 @@ export function RegularSpendingPage() {
                               category: item.category,
                               description: item.name,
                               date: new Date().toISOString(),
+                              ...(item.goalId ? { goalId: item.goalId } : {}),
                             })}
                             title="Log as transaction today"
                             className="w-8 h-8 flex items-center justify-center rounded-full text-gray-300 hover:text-emerald-500 hover:bg-emerald-50 cursor-pointer transition-colors"
@@ -395,6 +409,25 @@ export function RegularSpendingPage() {
                   className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
                 />
               </div>
+
+              {/* Goal / Pot (expense only) */}
+              {form.transactionType === 'expense' && goals.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    Fund a Pot <span className="normal-case font-normal text-gray-300">(optional)</span>
+                  </label>
+                  <select
+                    value={form.goalId}
+                    onChange={(e) => setForm((f) => ({ ...f, goalId: e.target.value }))}
+                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors"
+                  >
+                    <option value="">— None —</option>
+                    {goals.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <button
                 type="submit"

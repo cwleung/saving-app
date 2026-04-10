@@ -40,11 +40,14 @@ function getOccurrences(frequency: Frequency, from: Date, to: Date): Date[] {
 /** IDs already processed in this browser session — prevents duplicate writes on re-snapshots */
 const processedRecurringSession = new Set<string>();
 
-async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
+async function autoGenerateRecurring(uid: string, items: RegularSpending[], goals: SavingsGoal[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+  // Track how much to add to each goal's currentAmount from newly generated transactions
+  const goalDeltas: Record<string, number> = {};
 
   for (const item of items) {
     if (processedRecurringSession.has(item.id)) continue;
@@ -81,8 +84,12 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
         description: item.description ? `${item.name} — ${item.description}` : item.name,
         date: date.toISOString(),
         recurringId: item.id,
+        ...(item.goalId ? { goalId: item.goalId } : {}),
       };
       await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
+      if (item.goalId) {
+        goalDeltas[item.goalId] = (goalDeltas[item.goalId] ?? 0) + item.amount;
+      }
     }
 
     const todayStr = today.toISOString().split('T')[0];
@@ -90,6 +97,15 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
       doc(db, `users/${uid}/regularSpendings/${item.id}`),
       clean({ ...item, lastProcessedDate: todayStr }),
     );
+  }
+
+  // Apply accumulated goal deltas
+  for (const [goalId, delta] of Object.entries(goalDeltas)) {
+    const goal = goals.find((g) => g.id === goalId);
+    if (goal) {
+      const updated = { ...goal, currentAmount: goal.currentAmount + delta };
+      await setDoc(doc(db, `users/${uid}/goals/${goalId}`), clean(updated));
+    }
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,7 +188,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       (snap) => {
         const items = snap.docs.map((d) => d.data() as RegularSpending);
         set({ regularSpendings: items });
-        void autoGenerateRecurring(uid, items);
+        void autoGenerateRecurring(uid, items, get().goals);
       }
     );
 

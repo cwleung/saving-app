@@ -35,6 +35,7 @@ export interface RegularSpending {
   transactionType: 'income' | 'expense';
   description?: string;
   lastProcessedDate?: string;
+  goalId?: string;
 }
 
 export interface UpcomingItem {
