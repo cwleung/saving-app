@@ -506,20 +506,20 @@ export function SavingsGoals() {
                     <Check className="w-4 h-4" /> Goal Achieved!
                   </div>
                 ) : actionGoalId === goal.id ? (
-                  <div className="mt-1 bg-gray-50 rounded-2xl p-3 space-y-2.5">
-                    <div className="flex rounded-xl overflow-hidden border border-gray-200">
-                      <button
-                        type="button"
-                        onClick={() => setActionMode('deposit')}
-                        className={`flex-1 py-2 text-sm font-semibold transition-colors cursor-pointer ${actionMode === 'deposit' ? 'bg-emerald-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                      >↑ Deposit</button>
-                      <button
-                        type="button"
-                        onClick={() => setActionMode('withdraw')}
-                        className={`flex-1 py-2 text-sm font-semibold transition-colors cursor-pointer border-l border-gray-200 ${actionMode === 'withdraw' ? 'bg-red-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                      >↓ Withdraw</button>
-                    </div>
-                    <div className="flex gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex rounded-lg overflow-hidden border border-gray-200 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setActionMode('deposit')}
+                          className={`px-2.5 py-1.5 text-xs font-bold transition-colors cursor-pointer leading-none ${actionMode === 'deposit' ? 'bg-emerald-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
+                        >+</button>
+                        <button
+                          type="button"
+                          onClick={() => setActionMode('withdraw')}
+                          className={`px-2.5 py-1.5 text-xs font-bold transition-colors cursor-pointer border-l border-gray-200 leading-none ${actionMode === 'withdraw' ? 'bg-red-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
+                        >−</button>
+                      </div>
                       <input
                         type="number"
                         min="0.01"
@@ -528,28 +528,24 @@ export function SavingsGoals() {
                         onChange={(e) => setActionAmount(e.target.value)}
                         placeholder="0.00"
                         autoFocus
-                        className={`flex-1 min-w-0 bg-white border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:bg-white transition-colors ${
+                        className={`flex-1 min-w-0 bg-gray-50 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:bg-white transition-colors ${
                           actionMode === 'withdraw' && actionAmount && parseFloat(actionAmount) > goal.currentAmount
                             ? 'border-red-300 focus:ring-red-400'
-                            : actionMode === 'deposit'
-                              ? 'border-gray-200 focus:ring-emerald-400'
-                              : 'border-gray-200 focus:ring-red-400'
+                            : 'border-gray-200 focus:ring-emerald-400'
                         }`}
                       />
                       <button
                         onClick={() => actionMode === 'deposit' ? handleDeposit(goal) : handleWithdraw(goal)}
                         disabled={!actionAmount || parseFloat(actionAmount) <= 0 || (actionMode === 'withdraw' && parseFloat(actionAmount) > goal.currentAmount)}
-                        className={`px-4 py-2.5 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer ${actionMode === 'deposit' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}
-                      >Confirm</button>
+                        className={`w-7 h-7 flex items-center justify-center rounded-lg text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shrink-0 ${actionMode === 'deposit' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}
+                      >✓</button>
                       <button
                         onClick={() => { setActionGoalId(null); setActionAmount(''); }}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-200 text-gray-500 hover:bg-gray-300 transition-colors cursor-pointer shrink-0"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer shrink-0 transition-colors"
+                      ><X className="w-3.5 h-3.5" /></button>
                     </div>
                     {actionMode === 'withdraw' && actionAmount && parseFloat(actionAmount) > goal.currentAmount && (
-                      <p className="text-xs text-red-500">Amount exceeds goal balance</p>
+                      <p className="text-[11px] text-red-500 pl-1">Exceeds goal balance</p>
                     )}
                   </div>
                 ) : (
