@@ -21,8 +21,9 @@ const MONTHLY_FACTOR: Record<Frequency, number> = {
 interface PotForm {
   name: string;
   description: string;
+  initialAmount: string;
 }
-const EMPTY_FORM: PotForm = { name: '', description: '' };
+const EMPTY_FORM: PotForm = { name: '', description: '', initialAmount: '' };
 
 export function PotsPage() {
   const { pots, addPot, updatePot, deletePot, addTransaction, transactions, regularSpendings } =
@@ -38,10 +39,12 @@ export function PotsPage() {
   const [actionAmount, setActionAmount] = useState('');
   const [expandedPotId, setExpandedPotId] = useState<string | null>(null);
 
+  // Convention: expense = deposit INTO pot (+), income = withdrawal FROM pot (−)
+  // This way pot deposits also appear as expenses in the main P&L view
   function potBalance(potId: string) {
     return transactions
       .filter((t) => t.potId === potId)
-      .reduce((sum, t) => sum + (t.type === 'income' ? t.amount : t.type === 'expense' ? -t.amount : 0), 0);
+      .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : t.type === 'income' ? -t.amount : 0), 0);
   }
 
   const totalBalance = pots.reduce((s, p) => s + potBalance(p.id), 0);
@@ -52,19 +55,32 @@ export function PotsPage() {
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
+    const potId = crypto.randomUUID();
     addPot({
-      id: crypto.randomUUID(),
+      id: potId,
       name: form.name,
       color: POT_COLORS[pots.length % POT_COLORS.length],
       description: form.description || undefined,
     });
+    const initial = parseFloat(form.initialAmount);
+    if (initial > 0) {
+      addTransaction({
+        id: crypto.randomUUID(),
+        type: 'expense',
+        amount: initial,
+        category: 'Pot Deposit',
+        description: `Initial balance — ${form.name}`,
+        date: new Date().toISOString(),
+        potId,
+      });
+    }
     setForm(EMPTY_FORM);
     setShowAdd(false);
   }
 
   function openEdit(pot: Pot) {
     setEditPot(pot);
-    setEditForm({ name: pot.name, description: pot.description ?? '' });
+    setEditForm({ name: pot.name, description: pot.description ?? '', initialAmount: '' });
   }
 
   function handleEditSubmit(e: React.FormEvent) {
@@ -78,9 +94,10 @@ export function PotsPage() {
     const amt = parseFloat(actionAmount);
     if (!amt || amt <= 0) return;
     if (actionMode === 'withdraw' && amt > balance) return;
+    // deposit = expense (costs your main balance), withdraw = income (returns to main balance)
     addTransaction({
       id: crypto.randomUUID(),
-      type: actionMode === 'deposit' ? 'income' : 'expense',
+      type: actionMode === 'deposit' ? 'expense' : 'income',
       amount: amt,
       category: actionMode === 'deposit' ? 'Pot Deposit' : 'Pot Withdrawal',
       description: `${actionMode === 'deposit' ? 'Deposit to' : 'Withdrawal from'} ${pot.name}`,
@@ -154,6 +171,20 @@ export function PotsPage() {
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
             />
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                Starting balance <span className="normal-case font-normal text-gray-300">(optional — how much is already in here?)</span>
+              </label>
+              <input
+                type="number"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                value={form.initialAmount}
+                onChange={(e) => setForm((f) => ({ ...f, initialAmount: e.target.value }))}
+                className="w-full bg-gray-50 rounded-xl px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+              />
+            </div>
             <p className="text-xs text-indigo-600 bg-indigo-50 rounded-xl px-4 py-3 leading-relaxed">
               💡 Go to <strong>Regular</strong> → add an income item → link it to this pot for automatic monthly deposits.
             </p>
@@ -251,55 +282,60 @@ export function PotsPage() {
                     </div>
                   )}
 
-                  {/* Deposit / Withdraw — compact single-row */}
+                  {/* Deposit / Withdraw */}
                   {isActioning ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        {/* +/− toggle */}
-                        <div className="flex rounded-xl overflow-hidden border border-gray-200 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setActionMode('deposit')}
-                            className={`w-8 h-8 flex items-center justify-center text-sm font-bold transition-colors cursor-pointer ${actionMode === 'deposit' ? 'bg-emerald-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
-                          >+</button>
-                          <button
-                            type="button"
-                            onClick={() => setActionMode('withdraw')}
-                            className={`w-8 h-8 flex items-center justify-center text-sm font-bold transition-colors cursor-pointer border-l border-gray-200 ${actionMode === 'withdraw' ? 'bg-red-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
-                          >−</button>
-                        </div>
+                    <div className="mt-1 bg-gray-50 rounded-2xl p-3 space-y-2.5">
+                      <div className="flex rounded-xl overflow-hidden border border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => setActionMode('deposit')}
+                          className={`flex-1 py-2 text-sm font-semibold transition-colors cursor-pointer ${
+                            actionMode === 'deposit' ? 'bg-emerald-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >↑ Deposit</button>
+                        <button
+                          type="button"
+                          onClick={() => setActionMode('withdraw')}
+                          className={`flex-1 py-2 text-sm font-semibold transition-colors cursor-pointer border-l border-gray-200 ${
+                            actionMode === 'withdraw' ? 'bg-red-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >↓ Withdraw</button>
+                      </div>
+                      <div className="flex gap-2">
                         <input
                           type="number"
                           min="0.01"
                           step="0.01"
                           value={actionAmount}
                           onChange={(e) => setActionAmount(e.target.value)}
-                          placeholder="Amount…"
+                          placeholder="0.00"
                           autoFocus
-                          className={`flex-1 min-w-0 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:bg-white transition-colors ${actionMode === 'deposit' ? 'focus:ring-emerald-400' : 'focus:ring-red-400'}`}
+                          className={`flex-1 min-w-0 bg-white border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:bg-white transition-colors ${
+                            overBalance ? 'border-red-300 focus:ring-red-400' : actionMode === 'deposit' ? 'border-gray-200 focus:ring-emerald-400' : 'border-gray-200 focus:ring-red-400'
+                          }`}
                         />
                         <button
                           onClick={() => handleAction(pot, balance)}
                           disabled={!actionAmount || amt <= 0 || overBalance}
-                          className="w-8 h-8 flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl cursor-pointer shrink-0 transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
+                          className={`px-4 py-2.5 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer ${
+                            actionMode === 'deposit' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'
+                          }`}
+                        >Confirm</button>
                         <button
                           onClick={() => { setActionPotId(null); setActionAmount(''); }}
-                          className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-pointer shrink-0"
+                          className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-200 text-gray-500 hover:bg-gray-300 transition-colors cursor-pointer shrink-0"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                       {overBalance && (
-                        <p className="text-xs text-red-500 pl-1">Amount exceeds pot balance ({fmt(balance)})</p>
+                        <p className="text-xs text-red-500">Amount exceeds pot balance ({fmt(balance)})</p>
                       )}
                     </div>
                   ) : (
                     <button
                       onClick={() => { setActionPotId(pot.id); setActionMode('deposit'); setActionAmount(''); }}
-                      className="text-sm font-semibold flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
+                      className="text-sm font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
                       style={{ color: pot.color }}
                     >
                       <Plus className="w-4 h-4" /> Add / Withdraw
@@ -320,8 +356,9 @@ export function PotsPage() {
                         <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
                           {potTxs.map((t) => (
                             <div key={t.id} className="flex items-center gap-2 text-xs">
-                              {t.type === 'income' ? (
-                                <ArrowUpCircle className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                              {/* expense = deposit (into pot), income = withdrawal (out of pot) */}
+                              {t.type === 'expense' ? (
+                                <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                               ) : (
                                 <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
                               )}
@@ -329,8 +366,8 @@ export function PotsPage() {
                               <span className="text-gray-400 shrink-0">
                                 {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </span>
-                              <span className={`font-semibold shrink-0 ${t.type === 'income' ? 'text-indigo-600' : 'text-red-500'}`}>
-                                {t.type === 'income' ? '+' : '−'}{fmt(t.amount)}
+                              <span className={`font-semibold shrink-0 ${t.type === 'expense' ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {t.type === 'expense' ? '+' : '−'}{fmt(t.amount)}
                               </span>
                             </div>
                           ))}
