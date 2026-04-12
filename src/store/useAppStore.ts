@@ -5,6 +5,7 @@ import {
   onSnapshot,
   setDoc,
   deleteDoc,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -72,6 +73,9 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
     for (const date of occurrences) {
       const dateStr = date.toISOString().split('T')[0];
       const txId = `rec_${item.id}_${dateStr}`;
+      // Skip if already written (idempotency guard — prevents double-count on re-runs)
+      const existing = await getDoc(doc(db, `users/${uid}/transactions/${txId}`));
+      if (existing.exists()) continue;
       const tx: Transaction = {
         id: txId,
         type: item.transactionType,
@@ -145,6 +149,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   setUid: (uid) => {
+    // Clear session state so new login gets fresh generation
+    processedRecurringSession.clear();
+
     unsubTransactions?.();
     unsubGoals?.();
     unsubPots?.();
@@ -265,6 +272,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   updateRegularSpending: (item) => {
     const uid = get().uid;
     if (!uid) return;
+    // Clear from session Set so edited item gets re-processed on next snapshot
+    processedRecurringSession.delete(item.id);
     void setDoc(doc(db, `users/${uid}/regularSpendings/${item.id}`), clean(item));
   },
 
