@@ -3,6 +3,7 @@ import { Trash2, Plus, Check, X, Target, TrendingUp, Calendar, ChevronDown, Chev
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
+import { calcPotBalance } from '../lib/potBalance';
 
 const GOAL_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 const POT_COLORS  = ['#6366f1', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6'];
@@ -47,15 +48,7 @@ export function SavingsGoals() {
   const { goals, addGoal, updateGoal, deleteGoal, addTransaction, transactions, regularSpendings, pots, addPot } = useAppStore();
   const { fmt } = useCurrency();
 
-  function potBalance(potId: string) {
-    return transactions
-      .filter((t) => t.potId === potId)
-      .reduce((sum, t) => {
-        if (t.type === 'expense' || t.type === 'transfer') return sum + t.amount;
-        if (t.type === 'income') return sum - t.amount;
-        return sum;
-      }, 0);
-  }
+  const potBalance = (potId: string) => calcPotBalance(potId, transactions);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
   // action state: null = idle, 'deposit' or 'withdraw'

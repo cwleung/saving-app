@@ -136,7 +136,11 @@ export function RegularSpendingPage() {
       amount: parseFloat(form.amount),
       category: form.category || categories[0],
       frequency: form.frequency,
-      startDate: form.startDate || new Date().toISOString().split('T')[0],
+      startDate: (() => {
+        if (form.startDate) return form.startDate;
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      })(),
       endDate: form.endDate || undefined,
       transactionType: form.transactionType,
       description: form.description || undefined,

@@ -6,6 +6,7 @@ import {
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { Pot, Frequency } from '../types';
+import { calcPotBalance } from '../lib/potBalance';
 
 const POT_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6'];
 
@@ -40,15 +41,7 @@ export function PotsPage() {
   const [expandedPotId, setExpandedPotId] = useState<string | null>(null);
 
   // expense = deposit INTO pot (+), income = withdrawal FROM pot (−), transfer = initial balance (+, neutral in P&L)
-  function potBalance(potId: string) {
-    return transactions
-      .filter((t) => t.potId === potId)
-      .reduce((sum, t) => {
-        if (t.type === 'expense' || t.type === 'transfer') return sum + t.amount;
-        if (t.type === 'income') return sum - t.amount;
-        return sum;
-      }, 0);
-  }
+  const potBalance = (potId: string) => calcPotBalance(potId, transactions);
 
   const totalBalance = pots.reduce((s, p) => s + potBalance(p.id), 0);
   const totalMonthlyIn = pots.reduce((s, p) =>

@@ -18,6 +18,7 @@ import {
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
+import { calcPotBalance } from '../lib/potBalance';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -52,15 +53,7 @@ function monthLabel(keyStr: string): string {
 export function Dashboard() {
   const { transactions, goals, regularSpendings, upcomingItems } = useAppStore();
 
-  function potBalance(potId: string) {
-    return transactions
-      .filter((t) => t.potId === potId)
-      .reduce((sum, t) => {
-        if (t.type === 'expense' || t.type === 'transfer') return sum + t.amount;
-        if (t.type === 'income') return sum - t.amount;
-        return sum;
-      }, 0);
-  }
+  const potBalance = (potId: string) => calcPotBalance(potId, transactions);
   const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');

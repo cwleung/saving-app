@@ -42,11 +42,15 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
   const [amount, setAmount] = useState(initialData ? String(initialData.amount) : '');
   const [category, setCategory] = useState(initialData?.category ?? '');
   const [description, setDescription] = useState(initialData?.description ?? '');
-  const [date, setDate] = useState(
-    initialData
-      ? new Date(initialData.date).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0]
-  );
+  const [date, setDate] = useState(() => {
+    if (initialData) {
+      // Use local date components to avoid UTC midnight shifting the day
+      const d = new Date(initialData.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [goalId, setGoalId] = useState(initialData?.goalId ?? '');
   const [potId, setPotId] = useState(initialData?.potId ?? '');
 
@@ -62,7 +66,8 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
       amount: parseFloat(amount),
       category: category || categories[0],
       description,
-      date: new Date(date).toISOString(),
+      // Append T00:00:00 (no TZ) so JS parses it as local midnight → avoids UTC-day-shift
+      date: new Date(date + 'T00:00:00').toISOString(),
       goalId: goalId || undefined,
       potId: potId || undefined,
     };
