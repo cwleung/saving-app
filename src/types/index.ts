@@ -26,7 +26,8 @@ export interface SavingsGoal {
   id: string;
   name: string;
   targetAmount: number;
-  currentAmount: number;
+  /** @deprecated — balance is derived from pot transactions, not stored here */
+  currentAmount?: number;
   color: string;
   /** The pot this goal is backed by (every new goal must have one) */
   potId?: string;

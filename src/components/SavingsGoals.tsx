@@ -84,7 +84,6 @@ export function SavingsGoals() {
       id: crypto.randomUUID(),
       name: form.name,
       targetAmount: parseFloat(form.targetAmount),
-      currentAmount: form.potId === '__new__' ? 0 : potBalance(form.potId),
       color: GOAL_COLORS[colorIndex],
       potId: resolvedPotId,
       startDate: form.startDate || undefined,
@@ -123,7 +122,6 @@ export function SavingsGoals() {
       ...editGoal,
       name: editForm.name,
       targetAmount: parseFloat(editForm.targetAmount),
-      currentAmount: editGoal.currentAmount,
       potId: resolvedPotId || editGoal.potId,
       startDate: editForm.startDate || undefined,
       deadline: editForm.deadline || undefined,
@@ -150,7 +148,8 @@ export function SavingsGoals() {
 
   function handleWithdraw(goal: SavingsGoal) {
     const amt = parseFloat(actionAmount);
-    if (!amt || amt <= 0 || amt > goal.currentAmount) return;
+    const bal = potBalance(goal.potId ?? '');
+    if (!amt || amt <= 0 || amt > bal) return;
     addTransaction({
       id: crypto.randomUUID(),
       type: 'income',
@@ -166,27 +165,27 @@ export function SavingsGoals() {
     setActionAmount('');
   }
 
-  // goal.currentAmount is kept in sync by the store whenever a tagged transaction is added/deleted
-  const totalSaved     = goals.reduce((s, g) => s + g.currentAmount, 0);
+  // Pot balance is the source of truth for goal progress — never stored on the goal
+  const totalSaved     = goals.reduce((s, g) => s + potBalance(g.potId ?? ''), 0);
   const totalTarget    = goals.reduce((s, g) => s + g.targetAmount, 0);
   const overallPct     = totalTarget > 0 ? Math.min((totalSaved / totalTarget) * 100, 100) : 0;
-  const remaining      = goals.filter((g) => g.currentAmount < g.targetAmount).length;
-  const totalRemaining = goals.reduce((s, g) => s + Math.max(0, g.targetAmount - g.currentAmount), 0);
+  const remaining      = goals.filter((g) => potBalance(g.potId ?? '') < g.targetAmount).length;
+  const totalRemaining = goals.reduce((s, g) => s + Math.max(0, g.targetAmount - potBalance(g.potId ?? '')), 0);
 
   // Nearest deadline among incomplete goals
   const soonestGoal = goals
-    .filter((g) => g.deadline && g.currentAmount < g.targetAmount)
+    .filter((g) => g.deadline && potBalance(g.potId ?? '') < g.targetAmount)
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];
 
   // Monthly needed — uses the goal's own planned period (startDate → deadline)
   const monthlyNeeded = goals
-    .filter((g) => g.deadline && g.currentAmount < g.targetAmount)
+    .filter((g) => g.deadline && potBalance(g.potId ?? '') < g.targetAmount)
     .reduce((sum, g) => {
       const nowS = new Date(); nowS.setHours(0, 0, 0, 0);
       const startD = g.startDate ? new Date(g.startDate + 'T00:00:00') : nowS;
       const effectiveStart = startD > nowS ? startD : nowS;
       const months = Math.max(1, (new Date(g.deadline! + 'T00:00:00').getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
-      return sum + (g.targetAmount - g.currentAmount) / months;
+      return sum + (g.targetAmount - potBalance(g.potId ?? '')) / months;
     }, 0);
 
   return (
@@ -376,9 +375,10 @@ export function SavingsGoals() {
             const isNotStarted   = !!(goalStartD && goalStartD > nowC);
             const isOverduePast  = !!(goalEndD && goalEndD < nowC);
             const daysUntilStart = isNotStarted ? Math.ceil((goalStartD!.getTime() - nowC.getTime()) / 86_400_000) : null;
-            const progress   = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
-            const isComplete = goal.currentAmount >= goal.targetAmount;
-            const leftover   = Math.max(0, goal.targetAmount - goal.currentAmount);
+            const saved      = potBalance(goal.potId ?? '');
+            const progress   = Math.min((saved / goal.targetAmount) * 100, 100);
+            const isComplete = saved >= goal.targetAmount;
+            const leftover   = Math.max(0, goal.targetAmount - saved);
             const days       = goalEndD ? daysUntil(goal.deadline!) : null;
             // moNeeded uses goal's own planned period
             const planStart  = (goalStartD && goalStartD > nowC) ? goalStartD : nowC;
@@ -439,7 +439,7 @@ export function SavingsGoals() {
 
                 {/* Progress bar */}
                 <div className="flex justify-between items-center text-xs mb-1.5">
-                  <span className="text-gray-500 font-medium">{fmt(goal.currentAmount)} saved</span>
+                  <span className="text-gray-500 font-medium">{fmt(saved)} in pot</span>
                   <span className="font-bold" style={{ color: goal.color }}>{progress.toFixed(1)}%</span>
                 </div>
                 <div className="relative w-full bg-gray-100 rounded-full h-2.5 mb-1 overflow-hidden">
@@ -457,7 +457,7 @@ export function SavingsGoals() {
                 {!isComplete && (() => {
                   const next = [25, 50, 75, 100].find((m) => progress < m);
                   if (next === undefined) return null;
-                  const needed = (next / 100) * goal.targetAmount - goal.currentAmount;
+                  const needed = (next / 100) * goal.targetAmount - saved;
                   return (
                     <p className="text-[11px] text-gray-400 mb-2.5">
                       <span className="font-semibold text-gray-600">{fmt(needed)}</span> more to reach {next}%
@@ -526,14 +526,14 @@ export function SavingsGoals() {
                         placeholder="0.00"
                         autoFocus
                         className={`flex-1 min-w-0 bg-gray-50 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:bg-white transition-colors ${
-                          actionMode === 'withdraw' && actionAmount && parseFloat(actionAmount) > goal.currentAmount
+                          actionMode === 'withdraw' && actionAmount && parseFloat(actionAmount) > potBalance(goal.potId ?? '')
                             ? 'border-red-300 focus:ring-red-400'
                             : 'border-gray-200 focus:ring-emerald-400'
                         }`}
                       />
                       <button
                         onClick={() => actionMode === 'deposit' ? handleDeposit(goal) : handleWithdraw(goal)}
-                        disabled={!actionAmount || parseFloat(actionAmount) <= 0 || (actionMode === 'withdraw' && parseFloat(actionAmount) > goal.currentAmount)}
+                        disabled={!actionAmount || parseFloat(actionAmount) <= 0 || (actionMode === 'withdraw' && parseFloat(actionAmount) > potBalance(goal.potId ?? ''))}
                         className={`w-7 h-7 flex items-center justify-center rounded-lg text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shrink-0 ${actionMode === 'deposit' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}
                       >✓</button>
                       <button
@@ -541,8 +541,8 @@ export function SavingsGoals() {
                         className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer shrink-0 transition-colors"
                       ><X className="w-3.5 h-3.5" /></button>
                     </div>
-                    {actionMode === 'withdraw' && actionAmount && parseFloat(actionAmount) > goal.currentAmount && (
-                      <p className="text-[11px] text-red-500 pl-1">Exceeds goal balance</p>
+                    {actionMode === 'withdraw' && actionAmount && parseFloat(actionAmount) > potBalance(goal.potId ?? '') && (
+                      <p className="text-[11px] text-red-500 pl-1">Exceeds pot balance</p>
                     )}
                   </div>
                 ) : (
@@ -599,22 +599,26 @@ export function SavingsGoals() {
                       </button>
                       {isOpen && (
                         <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
-                          {contributions.map((t) => (
-                            <div key={t.id} className="flex items-center gap-2 text-xs">
-                              {t.goalWithdrawal ? (
-                                <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                              ) : (
-                                <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                              )}
-                              <span className="flex-1 text-gray-600 truncate">{t.description || t.category}</span>
-                              <span className="text-gray-400 shrink-0">
-                                {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                              <span className={`font-semibold shrink-0 ${t.goalWithdrawal ? 'text-red-500' : 'text-emerald-600'}`}>
-                                {t.goalWithdrawal ? '-' : '+'}{fmt(t.amount)}
-                              </span>
-                            </div>
-                          ))}
+                          {contributions.map((t) => {
+                            // income type = withdrawal from pot (reduces balance); expense = deposit
+                            const isWithdrawal = t.goalWithdrawal || t.type === 'income';
+                            return (
+                              <div key={t.id} className="flex items-center gap-2 text-xs">
+                                {isWithdrawal ? (
+                                  <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                                ) : (
+                                  <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                )}
+                                <span className="flex-1 text-gray-600 truncate">{t.description || t.category}</span>
+                                <span className="text-gray-400 shrink-0">
+                                  {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                                <span className={`font-semibold shrink-0 ${isWithdrawal ? 'text-red-500' : 'text-emerald-600'}`}>
+                                  {isWithdrawal ? '−' : '+'}{fmt(t.amount)}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

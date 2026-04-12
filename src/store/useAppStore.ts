@@ -40,14 +40,11 @@ function getOccurrences(frequency: Frequency, from: Date, to: Date): Date[] {
 /** IDs already processed in this browser session — prevents duplicate writes on re-snapshots */
 const processedRecurringSession = new Set<string>();
 
-async function autoGenerateRecurring(uid: string, items: RegularSpending[], goals: SavingsGoal[]) {
+async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-  // Track how much to add to each goal's currentAmount from newly generated transactions
-  const goalDeltas: Record<string, number> = {};
 
   for (const item of items) {
     if (processedRecurringSession.has(item.id)) continue;
@@ -57,7 +54,6 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[], goal
       ? new Date(item.lastProcessedDate + 'T00:00:00')
       : null;
 
-    // Start from day after last-processed, or from max(startDate, 3-months-ago)
     const startFrom = lastProcessed
       ? new Date(lastProcessed.getTime() + 24 * 60 * 60 * 1000)
       : new Date(Math.max(new Date(item.startDate + 'T00:00:00').getTime(), threeMonthsAgo.getTime()));
@@ -88,9 +84,6 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[], goal
         ...(item.potId  ? { potId:  item.potId  } : {}),
       };
       await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
-      if (item.goalId) {
-        goalDeltas[item.goalId] = (goalDeltas[item.goalId] ?? 0) + item.amount;
-      }
     }
 
     const todayStr = today.toISOString().split('T')[0];
@@ -98,15 +91,6 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[], goal
       doc(db, `users/${uid}/regularSpendings/${item.id}`),
       clean({ ...item, lastProcessedDate: todayStr }),
     );
-  }
-
-  // Apply accumulated goal deltas
-  for (const [goalId, delta] of Object.entries(goalDeltas)) {
-    const goal = goals.find((g) => g.id === goalId);
-    if (goal) {
-      const updated = { ...goal, currentAmount: goal.currentAmount + delta };
-      await setDoc(doc(db, `users/${uid}/goals/${goalId}`), clean(updated));
-    }
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -203,7 +187,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       (snap) => {
         const items = snap.docs.map((d) => d.data() as RegularSpending);
         set({ regularSpendings: items });
-        void autoGenerateRecurring(uid, items, get().goals);
+        void autoGenerateRecurring(uid, items);
       }
     );
 
@@ -222,58 +206,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const uid = get().uid;
     if (!uid) return;
     void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), clean(tx));
-    // goalWithdrawal = true means money leaves the goal (subtract); otherwise adds to goal
-    if (tx.goalId) {
-      const goal = get().goals.find((g) => g.id === tx.goalId);
-      if (goal) {
-        const delta = tx.goalWithdrawal ? -tx.amount : tx.amount;
-        const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount + delta) };
-        void setDoc(doc(db, `users/${uid}/goals/${tx.goalId}`), clean(updated));
-      }
-    }
   },
 
   updateTransaction: (tx) => {
     const uid = get().uid;
     if (!uid) return;
-
-    // Adjust goal currentAmounts when goalId or amount changes
-    const oldTx = get().transactions.find((t) => t.id === tx.id);
-    const goalDeltas: Record<string, number> = {};
-    // Reverse the old transaction's effect
-    if (oldTx?.goalId) {
-      goalDeltas[oldTx.goalId] = (goalDeltas[oldTx.goalId] ?? 0) + (oldTx.goalWithdrawal ? oldTx.amount : -oldTx.amount);
-    }
-    // Apply the new transaction's effect
-    if (tx.goalId) {
-      goalDeltas[tx.goalId] = (goalDeltas[tx.goalId] ?? 0) + (tx.goalWithdrawal ? -tx.amount : tx.amount);
-    }
-    for (const [goalId, delta] of Object.entries(goalDeltas)) {
-      if (delta === 0) continue;
-      const goal = get().goals.find((g) => g.id === goalId);
-      if (goal) {
-        const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount + delta) };
-        void setDoc(doc(db, `users/${uid}/goals/${goalId}`), clean(updated));
-      }
-    }
-
     void setDoc(doc(db, `users/${uid}/transactions/${tx.id}`), clean(tx));
   },
 
   deleteTransaction: (id) => {
     const uid = get().uid;
     if (!uid) return;
-    // Reverse goal effect when deleting
-    const tx = get().transactions.find((t) => t.id === id);
-    if (tx?.goalId) {
-      const goal = get().goals.find((g) => g.id === tx.goalId);
-      if (goal) {
-        // Reversal: if it was a withdrawal (subtracted), add back; if a deposit (added), subtract back
-        const delta = tx.goalWithdrawal ? tx.amount : -tx.amount;
-        const updated = { ...goal, currentAmount: Math.max(0, goal.currentAmount + delta) };
-        void setDoc(doc(db, `users/${uid}/goals/${tx.goalId}`), clean(updated));
-      }
-    }
     void deleteDoc(doc(db, `users/${uid}/transactions/${id}`));
   },
 

@@ -51,6 +51,16 @@ function monthLabel(keyStr: string): string {
 
 export function Dashboard() {
   const { transactions, goals, regularSpendings, upcomingItems } = useAppStore();
+
+  function potBalance(potId: string) {
+    return transactions
+      .filter((t) => t.potId === potId)
+      .reduce((sum, t) => {
+        if (t.type === 'expense' || t.type === 'transfer') return sum + t.amount;
+        if (t.type === 'income') return sum - t.amount;
+        return sum;
+      }, 0);
+  }
   const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
@@ -71,9 +81,9 @@ export function Dashboard() {
   const totalGoalProgress = useMemo(() => {
     if (!goals.length) return 0;
     const total = goals.reduce((s, g) => s + g.targetAmount, 0);
-    const current = goals.reduce((s, g) => s + Math.min(g.currentAmount, g.targetAmount), 0);
+    const current = goals.reduce((s, g) => s + Math.min(potBalance(g.potId ?? ''), g.targetAmount), 0);
     return total ? Math.round((current / total) * 100) : 0;
-  }, [goals]);
+  }, [goals, transactions]);
 
   // ── Chart data – daily / weekly / monthly ────────────────────────────
   const { chartData, chartTitle } = useMemo(() => {
@@ -223,7 +233,7 @@ export function Dashboard() {
 
     // Goal projections — use avg monthly savings (non-recurring surplus)
     const goalProjections = goals.map((g) => {
-      const remaining = Math.max(0, g.targetAmount - g.currentAmount);
+      const remaining = Math.max(0, g.targetAmount - potBalance(g.potId ?? ''));
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
       const onTrack = g.deadline
         ? monthsNeeded <= Math.max(0, (new Date(g.deadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30))
