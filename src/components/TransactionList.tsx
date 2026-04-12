@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, ArrowLeftRight, TrendingUp, RotateCcw } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, ArrowLeftRight, TrendingUp, RotateCcw, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { AddTransaction } from './AddTransaction';
@@ -43,26 +43,56 @@ const AMOUNT_PREFIX: Record<TransactionType, string> = {
 
 const ALL_FILTER_TYPES = ['all', 'income', 'expense', 'transfer', 'investment', 'refund'] as const;
 type FilterType = typeof ALL_FILTER_TYPES[number];
+type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc' | 'category-asc';
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'date-desc',    label: 'Date: Newest first' },
+  { value: 'date-asc',     label: 'Date: Oldest first' },
+  { value: 'amount-desc',  label: 'Amount: High to low' },
+  { value: 'amount-asc',   label: 'Amount: Low to high' },
+  { value: 'category-asc', label: 'Category: A–Z' },
+];
 
 export function TransactionList({ onAddTransaction }: TransactionListProps) {
   const { transactions, deleteTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('date-desc');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
 
-  const filtered = transactions
-    .filter((t) => filter === 'all' || t.type === filter)
-    .filter(
-      (t) =>
-        !search ||
-        t.description.toLowerCase().includes(search.toLowerCase()) ||
-        t.category.toLowerCase().includes(search.toLowerCase())
-    );
+  const filtered = useMemo(() => {
+    let list = transactions
+      .filter((t) => filter === 'all' || t.type === filter)
+      .filter(
+        (t) =>
+          !search ||
+          t.description.toLowerCase().includes(search.toLowerCase()) ||
+          t.category.toLowerCase().includes(search.toLowerCase())
+      );
+
+    if (dateFrom) list = list.filter((t) => t.date >= dateFrom);
+    if (dateTo)   list = list.filter((t) => t.date <= dateTo + 'T23:59:59');
+
+    switch (sortKey) {
+      case 'date-desc':    list = [...list].sort((a, b) => b.date.localeCompare(a.date)); break;
+      case 'date-asc':     list = [...list].sort((a, b) => a.date.localeCompare(b.date)); break;
+      case 'amount-desc':  list = [...list].sort((a, b) => b.amount - a.amount); break;
+      case 'amount-asc':   list = [...list].sort((a, b) => a.amount - b.amount); break;
+      case 'category-asc': list = [...list].sort((a, b) => a.category.localeCompare(b.category)); break;
+    }
+    return list;
+  }, [transactions, filter, search, sortKey, dateFrom, dateTo]);
+
+  const hasActiveFilters = filter !== 'all' || dateFrom || dateTo || search;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-4 pb-24 sm:pb-6">
       <div className="flex flex-col gap-3">
+        {/* Search + Add + Filter toggle */}
         <div className="flex gap-2">
           <input
             type="text"
@@ -72,12 +102,76 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
             className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm"
           />
           <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-colors ${
+              showFilters || hasActiveFilters
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            <span className="hidden sm:inline">Filter</span>
+            {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
+          </button>
+          <button
             onClick={onAddTransaction}
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors cursor-pointer shrink-0"
           >
             + Add
           </button>
         </div>
+
+        {/* Expandable filter panel */}
+        {showFilters && (
+          <div className="bg-gray-50 rounded-2xl p-4 space-y-3 border border-gray-200">
+            {/* Sort */}
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide shrink-0 w-16">Sort</label>
+              <div className="relative flex-1">
+                <select
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as SortKey)}
+                  className="w-full appearance-none bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer pr-8"
+                >
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Date range */}
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide shrink-0 w-16">Date</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+              <span className="text-gray-400 text-xs shrink-0">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+
+            {/* Clear filters */}
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setFilter('all'); setDateFrom(''); setDateTo(''); setSearch(''); }}
+                className="text-xs text-red-500 hover:text-red-700 font-medium cursor-pointer"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Type filter chips */}
         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
           {ALL_FILTER_TYPES.map((f) => (
             <button
@@ -94,6 +188,12 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
           ))}
         </div>
       </div>
+
+      {/* Result count */}
+      <p className="text-xs text-gray-400">
+        {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
+        {hasActiveFilters ? ' matching filters' : ''}
+      </p>
 
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
