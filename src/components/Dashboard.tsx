@@ -63,8 +63,11 @@ export function Dashboard() {
     [transactions]
   );
 
+  // 1. totalExpenses — exclude goal/pot deposits
   const totalExpenses = useMemo(
-    () => transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+    () => transactions
+      .filter((t) => t.type === 'expense' && !t.goalId && !t.potId)
+      .reduce((s, t) => s + t.amount, 0),
     [transactions]
   );
 
@@ -129,7 +132,7 @@ export function Dashboard() {
       else k = monthKey(d);
       if (k in buckets) {
         if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
-        else if (t.type === 'expense') buckets[k].expense += t.amount;
+        else if (t.type === 'expense' && !t.goalId && !t.potId) buckets[k].expense += t.amount;
       }
     });
 
@@ -160,8 +163,9 @@ export function Dashboard() {
     const cutoff = new Date(now.getTime() - spanToDays[pieSpan] * 86_400_000);
 
     const cats: Record<string, number> = {};
+    // 2. expenseByCategory — exclude goal/pot deposits
     transactions
-      .filter((t) => t.type === 'expense' && new Date(t.date) >= cutoff)
+      .filter((t) => t.type === 'expense' && !t.goalId && !t.potId && new Date(t.date) >= cutoff)
       .forEach((t) => {
         cats[t.category] = (cats[t.category] || 0) + t.amount;
       });
@@ -198,8 +202,8 @@ export function Dashboard() {
       if (last3Keys.includes(k)) {
         if (t.type === 'income' || t.type === 'refund') monthIncome += t.amount;
         else if (t.type === 'expense') {
-          monthExpense += t.amount;
           if (t.goalId) goalDeposits3 += t.amount;
+          else monthExpense += t.amount;  // only non-goal expenses
         }
       }
     });
@@ -381,7 +385,7 @@ export function Dashboard() {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Monthly Averages — Last 3 Months</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="manual transactions" color="emerald" />
-            <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="incl. goal deposits" color="red" />
+            <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="excl. goal deposits" color="red" />
             <ProjectionCard label="Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
             <ProjectionCard
               label="Savings Rate"
