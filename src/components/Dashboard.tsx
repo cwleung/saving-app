@@ -184,7 +184,7 @@ export function Dashboard() {
     const dayOfMonth = now.getDate();
     const monthProgress = dayOfMonth / daysInMonth; // 0–1
 
-    const last3Keys = [1, 2, 3].map((i) => {
+    const last3Keys = [0, 1, 2].map((i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       return monthKey(d);
     });
