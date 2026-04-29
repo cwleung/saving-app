@@ -63,7 +63,6 @@ export function Dashboard() {
     [transactions]
   );
 
-  // 1. totalExpenses — Now includes goal/pot deposits
   const totalExpenses = useMemo(
     () => transactions
       .filter((t) => t.type === 'expense')
@@ -132,7 +131,6 @@ export function Dashboard() {
       
       if (k in buckets) {
         if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
-        // Chart now includes goal/pot transfers in expenses
         else if (t.type === 'expense') buckets[k].expense += t.amount;
       }
     });
@@ -165,11 +163,13 @@ export function Dashboard() {
 
     const cats: Record<string, number> = {};
     transactions
-      // Now includes pots and goals as their respective categories (e.g., 'Savings' or 'Transfer')
       .filter((t) => t.type === 'expense' && new Date(t.date) >= cutoff)
       .forEach((t) => {
-        cats[t.category] = (cats[t.category] || 0) + t.amount;
+        // Automatically group goals and pots so they don't appear as blank categories
+        const catName = t.goalId ? 'Goals' : t.potId ? 'Savings Pots' : (t.category || 'Uncategorized');
+        cats[catName] = (cats[catName] || 0) + t.amount;
       });
+      
     return Object.entries(cats)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
@@ -180,7 +180,6 @@ export function Dashboard() {
     const now = new Date();
     const thisMonthK = monthKey(now);
 
-    // Date Math for the current month
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const daysInMonth = endOfMonth.getDate();
     const dayOfMonth = now.getDate();
@@ -198,7 +197,6 @@ export function Dashboard() {
     let totalHistoryManualSpend = 0;
     const txMonths = new Set<string>();
 
-    // Step 1: Analyze historical averages (Last 3 months)
     transactions.forEach((t) => {
       const k = monthKey(new Date(t.date));
       txMonths.add(k);
@@ -207,7 +205,6 @@ export function Dashboard() {
         if (t.type === 'income' || t.type === 'refund') {
           totalHistoryIncome += t.amount;
         } else if (t.type === 'expense') {
-          // Total expense now tracks everything including savings
           totalHistoryExpense += t.amount;
           
           if (t.goalId || t.potId) {
@@ -215,7 +212,6 @@ export function Dashboard() {
           }
           
           if (!t.recurringId && !t.goalId && !t.potId) {
-            // Strictly variable spending used to estimate the daily run-rate
             totalHistoryManualSpend += t.amount;
           }
         }
@@ -227,22 +223,18 @@ export function Dashboard() {
     const avgMonthlyExpense = totalHistoryExpense / activeMonths;
     const avgMonthlyGoalDeposits = totalHistoryGoalDeposits / activeMonths;
     
-    // Pro-rated estimation for remaining manual spending this month
     const avgMonthlyManualSpend = totalHistoryManualSpend / activeMonths;
     const avgDailyManualSpend = avgMonthlyManualSpend / daysInMonth;
     const estimatedRemainingManualSpend = avgDailyManualSpend * daysRemaining;
 
-    // Step 2: Current Month "Actuals" (Transactions already recorded)
     const thisMonthActualIncome = transactions
       .filter((t) => monthKey(new Date(t.date)) === thisMonthK && (t.type === 'income' || t.type === 'refund'))
       .reduce((s, t) => s + t.amount, 0);
 
     const thisMonthActualExpense = transactions
-      // Includes goal and pot deposits!
       .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense')
       .reduce((s, t) => s + t.amount, 0);
 
-    // Step 3: "Upcoming" items for THIS calendar month only
     let upcomingExpenseThisMonth = 0;
     let upcomingIncomeThisMonth = 0;
     
@@ -260,19 +252,14 @@ export function Dashboard() {
         else upcomingIncomeThisMonth += u.amount;
       });
 
-    // Step 4: Final Projected Totals
-    // Proj = What happened + What is scheduled to happen + Estimate of daily variable spend
     const projIncome = thisMonthActualIncome + upcomingIncomeThisMonth;
     const projExpense = thisMonthActualExpense + upcomingExpenseThisMonth + estimatedRemainingManualSpend;
     const projNet = projIncome - projExpense;
 
-    // Additional Insight Math
-    // Subtracting goal deposits from expenses strictly to calculate 'saving capacity' rates
     const avgMonthlySavings = avgMonthlyIncome - (avgMonthlyExpense - avgMonthlyGoalDeposits);
     const annualSavings = avgMonthlySavings * 12;
     const savingsRate = avgMonthlyIncome > 0 ? (avgMonthlySavings / avgMonthlyIncome) * 100 : 0;
 
-    // Spending trend (Now includes goals/pots to give complete outflow picture)
     const lastMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
@@ -284,7 +271,6 @@ export function Dashboard() {
     });
     const spendingTrend = prevExp > 0 ? ((lastExp - prevExp) / prevExp) * 100 : 0;
 
-    // Goal timelines
     const goalProjections = goals.map((g) => {
       const remaining = Math.max(0, g.targetAmount - potBalance(g.potId ?? ''));
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
@@ -294,7 +280,6 @@ export function Dashboard() {
       return { id: g.id, name: g.name, monthsNeeded, remaining, onTrack };
     });
 
-    // Recurring Totals for the info cards
     const FREQ_MONTHLY: Record<string, number> = {
       daily: 30, weekly: 4.33, biweekly: 2.16,
       monthly: 1, quarterly: 1 / 3, yearly: 1 / 12,
@@ -492,13 +477,13 @@ export function Dashboard() {
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-1 flex-wrap gap-2">
             <h3 className="font-semibold text-gray-700 text-sm">Income vs Expenses</h3>
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex gap-1 flex-wrap bg-gray-50 p-1 rounded-xl">
               {SPANS.map((s) => (
                 <button
                   key={s}
                   onClick={() => setChartSpan(s)}
-                  className={`px-2 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
-                    chartSpan === s ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-100'
+                  className={`px-2 py-1 text-xs rounded-lg font-medium transition-all cursor-pointer ${
+                    chartSpan === s ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
                   }`}
                 >
                   {s}
@@ -540,13 +525,13 @@ export function Dashboard() {
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
             <h3 className="font-semibold text-gray-700 text-sm">Expenses by Category</h3>
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex gap-1 flex-wrap bg-gray-50 p-1 rounded-xl">
               {SPANS.map((s) => (
                 <button
                   key={s}
                   onClick={() => setPieSpan(s)}
-                  className={`px-2 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
-                    pieSpan === s ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-100'
+                  className={`px-2 py-1 text-xs rounded-lg font-medium transition-all cursor-pointer ${
+                    pieSpan === s ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
                   }`}
                 >
                   {s}
