@@ -19,10 +19,18 @@
   --text-1: #e2e8f0;
   --text-2: #a8b3c4;
   --text-3: #7f8da2;
+  font-feature-settings: "cv11" 1, "ss01" 1;
+  letter-spacing: -0.005em;
   background:
     radial-gradient(1000px 520px at 15% -8%, rgba(16, 185, 129, 0.14), transparent 60%),
     radial-gradient(900px 460px at 100% 0%, rgba(59, 130, 246, 0.12), transparent 58%),
     var(--app-bg);
+}
+
+.dark-app h1,
+.dark-app h2,
+.dark-app h3 {
+  letter-spacing: -0.02em;
 }
 
 .dark-app .bg-white,
@@ -62,6 +70,16 @@
 .dark-app .text-gray-400,
 .dark-app .text-gray-300 { color: var(--text-3) !important; }
 
+.dark-app .text-xs {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+.dark-app [class*="text-[10px]"],
+.dark-app [class*="text-[11px]"] {
+  letter-spacing: 0.015em;
+}
+
 .dark-app .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.14) !important; }
 .dark-app .bg-red-50 { background-color: rgba(239, 68, 68, 0.14) !important; }
 .dark-app .bg-blue-50 { background-color: rgba(59, 130, 246, 0.14) !important; }
@@ -88,6 +106,18 @@
   border-color: #30506f !important;
 }
 
+.dark-app .bg-white.rounded-2xl,
+.dark-app .bg-white.rounded-xl,
+.dark-app .bg-gray-50.rounded-2xl,
+.dark-app .bg-gray-50.rounded-xl {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0));
+  border-color: #263a50 !important;
+}
+
+.dark-app .divide-gray-50 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-0) !important;
+}
+
 .dark-app .hover\:bg-gray-50:hover { background-color: var(--surface-2) !important; }
 .dark-app .hover\:bg-gray-100:hover,
 .dark-app .hover\:bg-gray-200:hover { background-color: #243548 !important; }
@@ -103,14 +133,46 @@
   color: var(--text-1);
 }
 
+.dark-app input,
+.dark-app select,
+.dark-app textarea,
+.dark-app button {
+  border-radius: 12px;
+}
+
+.dark-app input:focus,
+.dark-app select:focus,
+.dark-app textarea:focus {
+  border-color: #2e8a78 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
 .dark-app input::placeholder,
 .dark-app textarea::placeholder {
   color: var(--text-3);
 }
 
+.dark-app header {
+  background-color: rgba(17, 26, 36, 0.86) !important;
+  border-color: var(--border-0) !important;
+  backdrop-filter: blur(10px);
+}
+
+.dark-app button[class*="bg-emerald-500"],
+.dark-app button[class*="bg-emerald-600"] {
+  background-image: linear-gradient(180deg, #1db58d, #138a6d);
+  border: 1px solid rgba(110, 231, 183, 0.28);
+  box-shadow: 0 8px 18px rgba(16, 185, 129, 0.2);
+}
+
+.dark-app button[class*="bg-emerald-500"]:hover,
+.dark-app button[class*="bg-emerald-600"]:hover {
+  filter: brightness(1.06);
+}
+
 .dark-app .shadow-sm,
 .dark-app [class*="shadow-"] {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
 /* Hide scrollbar on filter chips */

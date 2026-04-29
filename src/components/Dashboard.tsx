@@ -727,9 +727,9 @@ function ProjectionCard({ label, value, sub, color }: ProjectionCardProps) {
   };
   return (
     <div className="bg-gradient-to-b from-white to-gray-50 border border-gray-100 rounded-xl p-3">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`font-bold text-sm ${colors[color] ?? colors.blue}`}>{value}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+      <p className="text-[11px] text-gray-400 font-semibold tracking-wide uppercase mb-1">{label}</p>
+      <p className={`font-bold text-[15px] ${colors[color] ?? colors.blue}`}>{value}</p>
+      <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>
     </div>
   );
 }
