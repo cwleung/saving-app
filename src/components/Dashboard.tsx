@@ -15,7 +15,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock, CalendarDays } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
@@ -57,6 +57,10 @@ export function Dashboard() {
   const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
+  const todayLabel = useMemo(
+    () => new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
+    []
+  );
 
   const totalIncome = useMemo(
     () => transactions.filter((t) => t.type === 'income' || t.type === 'refund').reduce((s, t) => s + t.amount, 0),
@@ -313,6 +317,7 @@ export function Dashboard() {
       monthProgress,
       dayOfMonth,
       daysInMonth,
+      trackedMonths: activeMonths,
       thisMonthActualIncome,
       thisMonthActualExpense,
     };
@@ -320,9 +325,42 @@ export function Dashboard() {
 
   const SPANS: TimeSpan[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
   const xAxisInterval = chartSpan === '1M' ? 4 : chartSpan === '3M' ? 1 : undefined;
+  const projectedLabel = projections.projNet >= 0 ? 'Projected Surplus' : 'Projected Deficit';
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-28 sm:pb-10">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-5 text-white border border-slate-700 shadow-sm">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Financial Dashboard</p>
+            <h2 className="text-xl font-semibold mt-1">Executive Summary</h2>
+          </div>
+          <div className="inline-flex items-center gap-1.5 text-xs text-slate-300">
+            <CalendarDays className="w-3.5 h-3.5" />
+            {todayLabel}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-white/10 rounded-xl px-3 py-2.5">
+            <p className="text-[11px] uppercase tracking-wide text-slate-300">Month-End</p>
+            <p className={`text-base font-semibold mt-0.5 ${projections.projNet >= 0 ? 'text-emerald-300' : 'text-orange-300'}`}>
+              {fmt(projections.projNet)}
+            </p>
+            <p className="text-[11px] text-slate-300 mt-0.5">{projectedLabel}</p>
+          </div>
+          <div className="bg-white/10 rounded-xl px-3 py-2.5">
+            <p className="text-[11px] uppercase tracking-wide text-slate-300">Savings Rate</p>
+            <p className="text-base font-semibold mt-0.5">{projections.savingsRate.toFixed(1)}%</p>
+            <p className="text-[11px] text-slate-300 mt-0.5">From recent monthly averages</p>
+          </div>
+          <div className="bg-white/10 rounded-xl px-3 py-2.5">
+            <p className="text-[11px] uppercase tracking-wide text-slate-300">Data Coverage</p>
+            <p className="text-base font-semibold mt-0.5">{projections.trackedMonths} month{projections.trackedMonths === 1 ? '' : 's'}</p>
+            <p className="text-[11px] text-slate-300 mt-0.5">Tracked in transaction history</p>
+          </div>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <SummaryCard
@@ -396,7 +434,7 @@ export function Dashboard() {
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Monthly Averages — Last 3 Months</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="manual transactions" color="emerald" />
+            <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="excludes pot/goal draws" color="emerald" />
             <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="includes savings" color="red" />
             <ProjectionCard label="Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
             <ProjectionCard
@@ -474,6 +512,12 @@ export function Dashboard() {
       </div>
 
       {/* Charts Section */}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700">Trends & Composition</h3>
+          <p className="text-xs text-gray-400">Visual breakdown of income, expenses, and category mix</p>
+        </div>
+      </div>
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Income vs Expense Area Chart */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -619,20 +663,21 @@ interface SummaryCardProps {
 
 function SummaryCard({ title, value, icon, color }: SummaryCardProps) {
   const accent: Record<string, string> = {
-    emerald: 'bg-emerald-500',
-    red:     'bg-red-400',
-    blue:    'bg-blue-500',
-    orange:  'bg-orange-400',
-    purple:  'bg-purple-500',
+    emerald: 'bg-emerald-100 text-emerald-600',
+    red:     'bg-red-100 text-red-500',
+    blue:    'bg-blue-100 text-blue-600',
+    orange:  'bg-orange-100 text-orange-500',
+    purple:  'bg-purple-100 text-purple-600',
   };
   return (
-    <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-start gap-3 overflow-hidden relative">
-      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${accent[color] ?? accent.blue}`} />
-      <div className="flex-1 min-w-0 pl-1">
-        <p className="text-xs text-gray-400 font-medium">{title}</p>
+    <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${accent[color] ?? accent.blue}`}>
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">{title}</p>
         <p className="text-xl font-bold text-gray-800 mt-1 truncate">{value}</p>
       </div>
-      <div className="shrink-0 mt-0.5 opacity-80">{icon}</div>
     </div>
   );
 }
@@ -654,7 +699,7 @@ function ProjectionCard({ label, value, sub, color }: ProjectionCardProps) {
     purple: 'text-purple-700',
   };
   return (
-    <div className="bg-gray-50 rounded-xl p-3">
+    <div className="bg-gradient-to-b from-white to-gray-50 border border-gray-100 rounded-xl p-3">
       <p className="text-xs text-gray-500 mb-1">{label}</p>
       <p className={`font-bold text-sm ${colors[color] ?? colors.blue}`}>{value}</p>
       <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
