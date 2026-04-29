@@ -208,7 +208,7 @@ export function Dashboard() {
       }
     });
 
-    const activeMonths = Math.min(3, Math.max(txMonths.size, 1));
+    const activeMonths = Math.max(txMonths.size, 1);
     const avgMonthlyIncome = monthIncome / activeMonths;
     const avgMonthlyExpense = monthExpense / activeMonths;
     const avgMonthlyGoalDeposits = goalDeposits3 / activeMonths;
