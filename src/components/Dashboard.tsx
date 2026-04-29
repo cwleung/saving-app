@@ -174,13 +174,16 @@ export function Dashboard() {
       .sort((a, b) => b.value - a.value);
   }, [transactions, pieSpan]);
 
-  // ── Projections ──────────────────────────────────────────────────────
+// ── Projections ──────────────────────────────────────────────────────
   const projections = useMemo(() => {
     const now = new Date();
     const thisMonthK = monthKey(now);
 
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    // Date Math for the current month
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const daysInMonth = endOfMonth.getDate();
     const dayOfMonth = now.getDate();
+    const daysRemaining = Math.max(0, daysInMonth - dayOfMonth);
     const monthProgress = dayOfMonth / daysInMonth;
 
     const last3Keys = [0, 1, 2].map((i) => {
@@ -188,39 +191,83 @@ export function Dashboard() {
       return monthKey(d);
     });
 
-    let monthIncome = 0;
-    let monthExpense = 0;
-    let goalDeposits3 = 0;
+    let totalHistoryIncome = 0;
+    let totalHistoryExpense = 0;
+    let totalHistoryGoalDeposits = 0;
     const txMonths = new Set<string>();
 
+    // Step 1: Analyze historical averages (Last 3 months)
+    // We exclude recurringId because recurring items are handled by 'upcomingItems' logic
     transactions.forEach((t) => {
-      if (t.recurringId) return;
       const k = monthKey(new Date(t.date));
       txMonths.add(k);
+      
       if (last3Keys.includes(k)) {
-        if (t.type === 'income' || t.type === 'refund') monthIncome += t.amount;
-        else if (t.type === 'expense') {
-          // Explicitly separate goal deposits from general month expense
-          if (t.goalId || t.potId) goalDeposits3 += t.amount;
-          else monthExpense += t.amount;
+        if (t.type === 'income' || t.type === 'refund') {
+          totalHistoryIncome += t.amount;
+        } else if (t.type === 'expense') {
+          if (t.goalId || t.potId) {
+            totalHistoryGoalDeposits += t.amount;
+          } else if (!t.recurringId) {
+            // We only average "manual" expenses for the daily run-rate
+            totalHistoryExpense += t.amount;
+          }
         }
       }
     });
 
     const activeMonths = Math.max(txMonths.size, 1);
-    const avgMonthlyIncome = monthIncome / activeMonths;
-    const avgMonthlyExpense = monthExpense / activeMonths;
-    const avgMonthlyGoalDeposits = goalDeposits3 / activeMonths;
+    const avgMonthlyIncome = totalHistoryIncome / activeMonths;
+    const avgMonthlyExpense = totalHistoryExpense / activeMonths;
+    const avgMonthlyGoalDeposits = totalHistoryGoalDeposits / activeMonths;
+    
+    // Pro-rated estimation for remaining manual spending this month
+    const avgDailyManualSpend = avgMonthlyExpense / daysInMonth;
+    const estimatedRemainingManualSpend = avgDailyManualSpend * daysRemaining;
+
+    // Step 2: Current Month "Actuals" (Transactions already recorded)
+    const thisMonthActualIncome = transactions
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && (t.type === 'income' || t.type === 'refund'))
+      .reduce((s, t) => s + t.amount, 0);
+
+    const thisMonthActualExpense = transactions
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense' && !t.goalId && !t.potId)
+      .reduce((s, t) => s + t.amount, 0);
+
+    // Step 3: "Upcoming" items for THIS calendar month only
+    let upcomingExpenseThisMonth = 0;
+    let upcomingIncomeThisMonth = 0;
+    
+    upcomingItems
+      .filter((u) => {
+        const dueDate = new Date(u.dueDate);
+        return (
+          !u.isPaid && 
+          dueDate <= endOfMonth && 
+          dueDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+        );
+      })
+      .forEach((u) => {
+        if (u.transactionType === 'expense') upcomingExpenseThisMonth += u.amount;
+        else upcomingIncomeThisMonth += u.amount;
+      });
+
+    // Step 4: Final Projected Totals
+    // Proj = What happened + What is scheduled to happen + Estimate of daily variable spend
+    const projIncome = thisMonthActualIncome + upcomingIncomeThisMonth;
+    const projExpense = thisMonthActualExpense + upcomingExpenseThisMonth + estimatedRemainingManualSpend;
+    const projNet = projIncome - projExpense;
+
+    // Additional Insight Math
     const avgMonthlySavings = avgMonthlyIncome - avgMonthlyExpense;
     const annualSavings = avgMonthlySavings * 12;
     const savingsRate = avgMonthlyIncome > 0 ? (avgMonthlySavings / avgMonthlyIncome) * 100 : 0;
 
-    // Spending trend (non-recurring, non-goal expenses only)
+    // Spending trend (Excluding goals/pots)
     const lastMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      // FIX: Added !t.potId to trend calculation
       if (t.type !== 'expense' || t.recurringId || t.goalId || t.potId) return;
       const k = monthKey(new Date(t.date));
       if (k === lastMonthK) lastExp += t.amount;
@@ -228,6 +275,7 @@ export function Dashboard() {
     });
     const spendingTrend = prevExp > 0 ? ((lastExp - prevExp) / prevExp) * 100 : 0;
 
+    // Goal timelines
     const goalProjections = goals.map((g) => {
       const remaining = Math.max(0, g.targetAmount - potBalance(g.potId ?? ''));
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
@@ -237,8 +285,9 @@ export function Dashboard() {
       return { id: g.id, name: g.name, monthsNeeded, remaining, onTrack };
     });
 
+    // Recurring Totals for the info cards
     const FREQ_MONTHLY: Record<string, number> = {
-      daily: 365 / 12, weekly: 52 / 12, biweekly: 26 / 12,
+      daily: 30, weekly: 4.33, biweekly: 2.16,
       monthly: 1, quarterly: 1 / 3, yearly: 1 / 12,
     };
     let recurringMonthlyExpense = 0;
@@ -248,29 +297,6 @@ export function Dashboard() {
       if (r.transactionType === 'expense') recurringMonthlyExpense += monthly;
       else recurringMonthlyIncome += monthly;
     });
-
-    const in30 = new Date(now.getTime() + 30 * 86_400_000);
-    let upcomingExpense30 = 0;
-    let upcomingIncome30 = 0;
-    upcomingItems
-      .filter((u) => !u.isPaid && new Date(u.dueDate) <= in30)
-      .forEach((u) => {
-        if (u.transactionType === 'expense') upcomingExpense30 += u.amount;
-        else upcomingIncome30 += u.amount;
-      });
-
-    const projIncome  = avgMonthlyIncome + recurringMonthlyIncome + upcomingIncome30;
-    const projExpense = avgMonthlyExpense + recurringMonthlyExpense + upcomingExpense30;
-    const projNet     = projIncome - projExpense;
-
-    const thisMonthActualIncome = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && (t.type === 'income' || t.type === 'refund'))
-      .reduce((s, t) => s + t.amount, 0);
-
-    // FIX: Exclude goal deposits from "This Month Actual Expense"
-    const thisMonthActualExpense = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense' && !t.goalId && !t.potId)
-      .reduce((s, t) => s + t.amount, 0);
 
     return {
       avgMonthlyIncome,
@@ -283,8 +309,8 @@ export function Dashboard() {
       goalProjections,
       recurringMonthlyExpense,
       recurringMonthlyIncome,
-      upcomingExpense30,
-      upcomingIncome30,
+      upcomingExpense30: upcomingExpenseThisMonth,
+      upcomingIncome30: upcomingIncomeThisMonth,
       projIncome,
       projExpense,
       projNet,
