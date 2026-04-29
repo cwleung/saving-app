@@ -163,10 +163,15 @@ export function Dashboard() {
 
     const cats: Record<string, number> = {};
     transactions
-      .filter((t) => t.type === 'expense' && new Date(t.date) >= cutoff)
+      .filter(
+        (t) =>
+          t.type === 'expense' &&
+          new Date(t.date) >= cutoff &&
+          !t.goalId &&
+          !t.potId
+      )
       .forEach((t) => {
-        // Automatically group goals and pots so they don't appear as blank categories
-        const catName = t.goalId ? 'Goals' : t.potId ? 'Savings Pots' : (t.category || 'Uncategorized');
+        const catName = t.category || 'Uncategorized';
         cats[catName] = (cats[catName] || 0) + t.amount;
       });
       
