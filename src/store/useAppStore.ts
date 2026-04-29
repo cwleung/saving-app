@@ -40,6 +40,9 @@ function getOccurrences(frequency: Frequency, from: Date, to: Date): Date[] {
 
 /** IDs already processed in this browser session — prevents duplicate writes on re-snapshots */
 const processedRecurringSession = new Set<string>();
+// In-flight guard: prevents re-entrant calls when Firestore snapshots fire
+// mid-write (writing a transaction triggers a snapshot → calls this again)
+const processingInFlight = new Set<string>();
 
 async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
   const today = new Date();
@@ -48,53 +51,49 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
   for (const item of items) {
-    if (processedRecurringSession.has(item.id)) continue;
-    processedRecurringSession.add(item.id);
+    if (processingInFlight.has(item.id)) continue;
+    processingInFlight.add(item.id);
 
-    const lastProcessed = item.lastProcessedDate
-      ? new Date(item.lastProcessedDate + 'T00:00:00')
-      : null;
+    try {
+      const startFrom = new Date(
+        Math.max(new Date(item.startDate + 'T00:00:00').getTime(), threeMonthsAgo.getTime())
+      );
+      startFrom.setHours(0, 0, 0, 0);
 
-    const startFrom = lastProcessed
-      ? new Date(lastProcessed.getTime() + 24 * 60 * 60 * 1000)
-      : new Date(Math.max(new Date(item.startDate + 'T00:00:00').getTime(), threeMonthsAgo.getTime()));
-    startFrom.setHours(0, 0, 0, 0);
+      if (startFrom >= today) continue;
 
-    if (startFrom >= today) continue;
+      const endAt = item.endDate
+        ? new Date(Math.min(new Date(item.endDate + 'T00:00:00').getTime(), today.getTime()))
+        : new Date(today);
+      endAt.setHours(0, 0, 0, 0);
 
-    const endAt = item.endDate
-      ? new Date(Math.min(new Date(item.endDate + 'T00:00:00').getTime(), today.getTime()))
-      : new Date(today);
-    endAt.setHours(0, 0, 0, 0);
+      const occurrences = getOccurrences(item.frequency, startFrom, endAt);
+      if (occurrences.length === 0) continue;
 
-    const occurrences = getOccurrences(item.frequency, startFrom, endAt);
-    if (occurrences.length === 0) continue;
-
-    for (const date of occurrences) {
-      const dateStr = date.toISOString().split('T')[0];
-      const txId = `rec_${item.id}_${dateStr}`;
-      // Skip if already written (idempotency guard — prevents double-count on re-runs)
-      const existing = await getDoc(doc(db, `users/${uid}/transactions/${txId}`));
-      if (existing.exists()) continue;
-      const tx: Transaction = {
-        id: txId,
-        type: item.transactionType,
-        amount: item.amount,
-        category: item.category,
-        description: item.description ? `${item.name} — ${item.description}` : item.name,
-        date: date.toISOString(),
-        recurringId: item.id,
-        ...(item.goalId ? { goalId: item.goalId } : {}),
-        ...(item.potId  ? { potId:  item.potId  } : {}),
-      };
-      await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
+      for (const date of occurrences) {
+        const dateStr = date.toISOString().split('T')[0];
+        const txId = `rec_${item.id}_${dateStr}`;
+        const existing = await getDoc(doc(db, `users/${uid}/transactions/${txId}`));
+        if (existing.exists()) continue;
+        const tx: Transaction = {
+          id: txId,
+          type: item.transactionType,
+          amount: item.amount,
+          category: item.category,
+          description: item.description ? `${item.name} — ${item.description}` : item.name,
+          date: date.toISOString(),
+          recurringId: item.id,
+          ...(item.goalId ? { goalId: item.goalId } : {}),
+          ...(item.potId  ? { potId:  item.potId  } : {}),
+        };
+        await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
+      }
+      // ✅ Do NOT write lastProcessedDate back — that Firestore write triggered
+      // another snapshot → another autoGenerateRecurring → the duplicate bug.
+      // The deterministic ID rec_<itemId>_<YYYY-MM-DD> is sufficient idempotency.
+    } finally {
+      processingInFlight.delete(item.id);
     }
-
-    const todayStr = today.toISOString().split('T')[0];
-    await setDoc(
-      doc(db, `users/${uid}/regularSpendings/${item.id}`),
-      clean({ ...item, lastProcessedDate: todayStr }),
-    );
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
