@@ -63,7 +63,7 @@ export function Dashboard() {
     [transactions]
   );
 
-  // 1. totalExpenses — exclude goal/pot deposits
+  // 1. totalExpenses — Clean exclusion of goal/pot deposits
   const totalExpenses = useMemo(
     () => transactions
       .filter((t) => t.type === 'expense' && !t.goalId && !t.potId)
@@ -72,7 +72,6 @@ export function Dashboard() {
   );
 
   const netSavings = totalIncome - totalExpenses;
-
 
   const totalGoalProgress = useMemo(() => {
     if (!goals.length) return 0;
@@ -130,8 +129,10 @@ export function Dashboard() {
       if (chartSpan === '1W' || chartSpan === '1M') k = isoDate(d);
       else if (chartSpan === '3M') k = weekStartIso(d);
       else k = monthKey(d);
+      
       if (k in buckets) {
         if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
+        // Ensure chart excludes goal/pot transfers
         else if (t.type === 'expense' && !t.goalId && !t.potId) buckets[k].expense += t.amount;
       }
     });
@@ -163,7 +164,6 @@ export function Dashboard() {
     const cutoff = new Date(now.getTime() - spanToDays[pieSpan] * 86_400_000);
 
     const cats: Record<string, number> = {};
-    // 2. expenseByCategory — exclude goal/pot deposits
     transactions
       .filter((t) => t.type === 'expense' && !t.goalId && !t.potId && new Date(t.date) >= cutoff)
       .forEach((t) => {
@@ -179,10 +179,9 @@ export function Dashboard() {
     const now = new Date();
     const thisMonthK = monthKey(now);
 
-    // Days elapsed and progress through the current month
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const dayOfMonth = now.getDate();
-    const monthProgress = dayOfMonth / daysInMonth; // 0–1
+    const monthProgress = dayOfMonth / daysInMonth;
 
     const last3Keys = [0, 1, 2].map((i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -194,7 +193,6 @@ export function Dashboard() {
     let goalDeposits3 = 0;
     const txMonths = new Set<string>();
 
-    // Exclude auto-generated recurring transactions — they're already in recurringMonthly*
     transactions.forEach((t) => {
       if (t.recurringId) return;
       const k = monthKey(new Date(t.date));
@@ -202,8 +200,9 @@ export function Dashboard() {
       if (last3Keys.includes(k)) {
         if (t.type === 'income' || t.type === 'refund') monthIncome += t.amount;
         else if (t.type === 'expense') {
-          if (t.goalId) goalDeposits3 += t.amount;
-          else monthExpense += t.amount;  // only non-goal expenses
+          // Explicitly separate goal deposits from general month expense
+          if (t.goalId || t.potId) goalDeposits3 += t.amount;
+          else monthExpense += t.amount;
         }
       }
     });
@@ -221,14 +220,14 @@ export function Dashboard() {
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      if (t.type !== 'expense' || t.recurringId || t.goalId) return;
+      // FIX: Added !t.potId to trend calculation
+      if (t.type !== 'expense' || t.recurringId || t.goalId || t.potId) return;
       const k = monthKey(new Date(t.date));
       if (k === lastMonthK) lastExp += t.amount;
       if (k === prevMonthK) prevExp += t.amount;
     });
     const spendingTrend = prevExp > 0 ? ((lastExp - prevExp) / prevExp) * 100 : 0;
 
-    // Goal projections — use avg monthly savings (non-recurring surplus)
     const goalProjections = goals.map((g) => {
       const remaining = Math.max(0, g.targetAmount - potBalance(g.potId ?? ''));
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
@@ -238,7 +237,6 @@ export function Dashboard() {
       return { id: g.id, name: g.name, monthsNeeded, remaining, onTrack };
     });
 
-    // Regular spending projections
     const FREQ_MONTHLY: Record<string, number> = {
       daily: 365 / 12, weekly: 52 / 12, biweekly: 26 / 12,
       monthly: 1, quarterly: 1 / 3, yearly: 1 / 12,
@@ -251,7 +249,6 @@ export function Dashboard() {
       else recurringMonthlyIncome += monthly;
     });
 
-    // Upcoming items in next 30 days
     const in30 = new Date(now.getTime() + 30 * 86_400_000);
     let upcomingExpense30 = 0;
     let upcomingIncome30 = 0;
@@ -262,17 +259,17 @@ export function Dashboard() {
         else upcomingIncome30 += u.amount;
       });
 
-    // Projected full-month totals
     const projIncome  = avgMonthlyIncome + recurringMonthlyIncome + upcomingIncome30;
     const projExpense = avgMonthlyExpense + recurringMonthlyExpense + upcomingExpense30;
     const projNet     = projIncome - projExpense;
 
-    // This month actual so far (from thisMonthData — passed via closure below)
     const thisMonthActualIncome = transactions
       .filter((t) => monthKey(new Date(t.date)) === thisMonthK && (t.type === 'income' || t.type === 'refund'))
       .reduce((s, t) => s + t.amount, 0);
+
+    // FIX: Exclude goal deposits from "This Month Actual Expense"
     const thisMonthActualExpense = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense')
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense' && !t.goalId && !t.potId)
       .reduce((s, t) => s + t.amount, 0);
 
     return {
@@ -300,8 +297,6 @@ export function Dashboard() {
   }, [transactions, goals, regularSpendings, upcomingItems]);
 
   const SPANS: TimeSpan[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
-
-  // XAxis tick density: reduce labels when many data points
   const xAxisInterval = chartSpan === '1M' ? 4 : chartSpan === '3M' ? 1 : undefined;
 
   return (
@@ -334,21 +329,19 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Projections */}
+      {/* Projections & Insights */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-5">
         <div className="flex items-center gap-2">
           <BarChart2 className="w-4 h-4 text-gray-500" />
           <h3 className="font-semibold text-gray-700">Projections & Insights</h3>
         </div>
 
-        {/* ── This Month: Actual vs Projected ── */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">This Month</p>
             <span className="text-[11px] text-gray-400">Day {projections.dayOfMonth} of {projections.daysInMonth} · {Math.round(projections.monthProgress * 100)}% through</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {/* Income */}
             <div className="bg-emerald-50 rounded-xl p-3">
               <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Income</p>
               <p className="text-sm font-bold text-emerald-700">{fmt(projections.thisMonthActualIncome)}</p>
@@ -357,7 +350,6 @@ export function Dashboard() {
                 <div className="h-1 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, projections.projIncome > 0 ? (projections.thisMonthActualIncome / projections.projIncome) * 100 : 0)}%` }} />
               </div>
             </div>
-            {/* Expenses */}
             <div className="bg-red-50 rounded-xl p-3">
               <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Expenses</p>
               <p className="text-sm font-bold text-red-600">{fmt(projections.thisMonthActualExpense)}</p>
@@ -366,7 +358,6 @@ export function Dashboard() {
                 <div className="h-1 rounded-full bg-red-500" style={{ width: `${Math.min(100, projections.projExpense > 0 ? (projections.thisMonthActualExpense / projections.projExpense) * 100 : 0)}%` }} />
               </div>
             </div>
-            {/* Net */}
             <div className={`rounded-xl p-3 ${projections.projNet >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
               <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Net</p>
               <p className={`text-sm font-bold ${projections.projNet >= 0 ? 'text-blue-700' : 'text-orange-600'}`}>
@@ -380,7 +371,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* ── Monthly Averages (last 3 months) ── */}
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Monthly Averages — Last 3 Months</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -401,7 +391,6 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* ── Recurring & Upcoming breakdown ── */}
         {(projections.recurringMonthlyExpense > 0 || projections.recurringMonthlyIncome > 0 || projections.upcomingExpense30 > 0 || projections.upcomingIncome30 > 0) && (
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Committed Costs</p>
@@ -422,14 +411,13 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* ── Trend badge + Goal timeline ── */}
         <div className="flex flex-wrap gap-2 items-start">
           {projections.spendingTrend !== 0 && (
             <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-1 ${
               projections.spendingTrend > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
             }`}>
               {projections.spendingTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month
+              Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month (excl. goals)
             </div>
           )}
         </div>
@@ -463,9 +451,9 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* Charts */}
+      {/* Charts Section */}
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* Area Chart */}
+        {/* Income vs Expense Area Chart */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-1 flex-wrap gap-2">
             <h3 className="font-semibold text-gray-700 text-sm">Income vs Expenses</h3>
@@ -501,7 +489,6 @@ export function Dashboard() {
               <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
                 labelStyle={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}
                 cursor={{ fill: 'rgba(0,0,0,0.03)' }}
@@ -512,11 +499,6 @@ export function Dashboard() {
               <Line type="monotone" dataKey="net" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" name="net" />
             </ComposedChart>
           </ResponsiveContainer>
-          <div className="flex gap-4 mt-2.5 justify-center text-xs text-gray-400">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'rgba(16,185,129,0.3)', outline: '1.5px solid #10b981' }} />Income</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'rgba(239,68,68,0.3)', outline: '1.5px solid #ef4444' }} />Expenses</span>
-            <span className="flex items-center gap-1.5"><span className="w-5 inline-block" style={{ borderTop: '2px dashed #3b82f6' }} />Net</span>
-          </div>
         </div>
 
         {/* Pie Chart */}
@@ -550,13 +532,10 @@ export function Dashboard() {
                     contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
                     formatter={(value, name) => {
                       const val = typeof value === 'number' ? value : 0;
-
                       const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
                       const percent = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
-
                       return [`${name} · ${percent}%`];
                     }}
-                    labelStyle={{ fontWeight: 600, color: '#374151' }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -581,7 +560,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Savings Breakdown */}
+      {/* Bar Chart Monthly Breakdown */}
       {chartData.some((d) => d.income > 0 || d.expense > 0) && (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
@@ -595,9 +574,7 @@ export function Dashboard() {
               <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
-                labelStyle={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}
                 cursor={{ fill: 'rgba(0,0,0,0.03)' }}
               />
               <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
@@ -605,10 +582,6 @@ export function Dashboard() {
               <Bar dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} name="expense" maxBarSize={36} />
             </BarChart>
           </ResponsiveContainer>
-          <div className="flex gap-4 mt-2.5 justify-center text-xs text-gray-400">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />Income</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block" />Expenses</span>
-          </div>
         </div>
       )}
     </div>
