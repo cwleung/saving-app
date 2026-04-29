@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, ArrowLeftRight, TrendingUp, RotateCcw, ArrowUpDown, ChevronDown, CheckSquare, Square, Tag, X, Check } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
+import { BULK_EDIT_CATEGORIES } from '../lib/categories';
 import { AddTransaction } from './AddTransaction';
 import type { Transaction, TransactionType } from '../types';
 
@@ -40,17 +41,6 @@ const AMOUNT_PREFIX: Record<TransactionType, string> = {
   investment: '↗',
   refund: '+',
 };
-
-const ALL_CATEGORIES = [
-  // Expenses
-  'Eat Out', 'Groceries', 'Transport', 'Rent / Housing', 'Utilities',
-  'Insurance', 'Subscriptions', 'Shopping', 'Entertainment', 'Travel',
-  'Education', 'Healthcare', 'Personal Care', 'Debt Repayment',
-  // Income
-  'Salary', 'Freelance / Side Project', 'Bonus', 'Investment Income',
-  'Rental Income', 'Reimbursement', 'Gift / Windfall',
-  'Other',
-];
 
 const ALL_FILTER_TYPES = ['all', 'income', 'expense', 'transfer', 'investment', 'refund'] as const;
 type FilterType = typeof ALL_FILTER_TYPES[number];
@@ -290,7 +280,7 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
                   className="w-full appearance-none bg-white border border-violet-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400 cursor-pointer pr-8"
                 >
                   <option value="">— Pick new category —</option>
-                  {ALL_CATEGORIES.map((c) => (
+                  {BULK_EDIT_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>

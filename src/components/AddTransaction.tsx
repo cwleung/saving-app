@@ -2,73 +2,8 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
+import { CATEGORIES_BY_TRANSACTION_TYPE } from '../lib/categories';
 import type { Transaction, TransactionType } from '../types';
-
-const CATEGORIES: Record<TransactionType, string[]> = {
-  income: [
-    'Salary',
-    'Freelance / Side Project',
-    'Bonus',
-    'Investment Income',     // dividends, interest, realised gains
-    'Rental Income',
-    'Reimbursement',         // company pays you back
-    'Gift / Windfall',
-    'Other'
-  ],
-
-  expense: [
-    // Daily life (high frequency → easy tagging)
-    'Eat Out',               // restaurants, takeaway, coffee
-    'Groceries',             // supermarket
-    'Transport',             // tube, uber, fuel
-
-    // Fixed / big items
-    'Rent / Housing',
-    'Utilities',             // electricity, water, internet
-    'Insurance',
-    'Subscriptions',
-
-    // Lifestyle
-    'Shopping',
-    'Entertainment',
-    'Travel',
-
-    // Personal investment (yourself)
-    'Education',
-    'Healthcare',
-    'Personal Care',
-
-    // Financial obligations
-    'Debt Repayment',
-
-    'Other'
-  ],
-
-  transfer: [
-    'Own Account Transfer',   // bank ↔ bank
-    'Savings Move',
-    'Investment Funding',     // move cash into broker
-    'Other'
-  ],
-
-  investment: [
-    'Stocks',
-    'ETF / Index Fund',
-    'Crypto',
-    'Bonds',
-    'Real Estate',
-    'Pension / Retirement',
-    'Other'
-  ],
-
-  refund: [
-    'Purchase Refund',
-    'Service Refund',
-    'Insurance Claim',
-    'Tax Refund',
-    'Other'
-  ],
-};
 
 
 const TYPE_LABELS: Record<TransactionType, string> = {
@@ -113,7 +48,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
   const [goalId, setGoalId] = useState(initialData?.goalId ?? '');
   const [potId, setPotId] = useState(initialData?.potId ?? '');
 
-  const categories = CATEGORIES[type];
+  const categories = CATEGORIES_BY_TRANSACTION_TYPE[type];
   const showGoalSelector = (type === 'income' || type === 'expense' || type === 'refund') && goals.length > 0;
   const showPotSelector = (type === 'income' || type === 'expense') && pots.length > 0;
 

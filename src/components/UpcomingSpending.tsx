@@ -2,46 +2,8 @@ import { useState } from 'react';
 import { Plus, Trash2, Pencil, X, CheckCircle2, Clock, AlertCircle, CalendarOff } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
 import type { UpcomingItem } from '../types';
-
-const EXPENSE_CATEGORIES = [
-  // High-frequency (optimize for speed)
-  'Eat Out',
-  'Groceries',
-  'Transport',
-
-  // Fixed / recurring
-  'Rent / Housing',
-  'Utilities',
-  'Insurance',
-  'Subscriptions',
-
-  // Lifestyle
-  'Shopping',
-  'Entertainment',
-  'Travel',
-
-  // Self investment
-  'Education',
-  'Healthcare',
-  'Personal Care',
-
-  // Financial
-  'Debt Repayment',
-
-  'Other',
-];
-
-const INCOME_CATEGORIES = [
-  'Salary',
-  'Freelance / Side Project',
-  'Bonus',
-  'Investment Income',
-  'Rental Income',
-  'Reimbursement',
-  'Gift / Windfall',
-  'Other',
-];
 
 
 function daysFromNow(dateStr: string): number {
@@ -472,4 +434,3 @@ export function UpcomingSpendingPage() {
     </div>
   );
 }
-
