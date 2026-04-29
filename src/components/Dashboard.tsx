@@ -552,7 +552,8 @@ export function Dashboard() {
                     formatter={(v: any) => {
                       const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
                       const val = typeof v === 'number' ? v : 0;
-                      return [`${fmt(val)} · ${total > 0 ? ((val / total) * 100).toFixed(1) : 0}%`];
+                      const name = expenseByCategory[0].name
+                      return [`${name} · ${total > 0 ? ((val / total) * 100).toFixed(1) : 0}%`];
                     }}
                     labelStyle={{ fontWeight: 600, color: '#374151' }}
                   />
