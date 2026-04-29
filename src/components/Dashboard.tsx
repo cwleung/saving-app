@@ -179,6 +179,8 @@ export function Dashboard() {
   const projections = useMemo(() => {
     const now = new Date();
     const thisMonthK = monthKey(now);
+    const isSavingsDraw = (t: { type: string; potId?: string; goalWithdrawal?: boolean }) =>
+      t.type === 'income' && (!!t.potId || !!t.goalWithdrawal);
 
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const daysInMonth = endOfMonth.getDate();
@@ -202,7 +204,7 @@ export function Dashboard() {
       txMonths.add(k);
       
       if (last3Keys.includes(k)) {
-        if (t.type === 'income' || t.type === 'refund') {
+        if ((t.type === 'income' || t.type === 'refund') && !isSavingsDraw(t)) {
           totalHistoryIncome += t.amount;
         } else if (t.type === 'expense') {
           totalHistoryExpense += t.amount;
