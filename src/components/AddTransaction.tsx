@@ -5,12 +5,71 @@ import { useCurrency } from '../hooks/useCurrency';
 import type { Transaction, TransactionType } from '../types';
 
 const CATEGORIES: Record<TransactionType, string[]> = {
-  income: ['Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Business Income', 'Bonus', 'Gift', 'Tax Refund', 'Other'],
-  expense: ['Food & Dining', 'Housing & Rent', 'Transport', 'Entertainment', 'Healthcare', 'Shopping', 'Utilities', 'Education', 'Insurance', 'Personal Care', 'Subscriptions', 'Travel', 'Childcare', 'Debt Payment', 'Other'],
-  transfer: ['Bank Transfer', 'Savings Transfer', 'Investment Transfer', 'Other'],
-  investment: ['Stocks', 'Crypto', 'Real Estate', 'ETF/Index Fund', 'Retirement (401k/IRA)', 'Bonds', 'Other'],
-  refund: ['Product Return', 'Tax Refund', 'Insurance Claim', 'Service Refund', 'Other'],
+  income: [
+    'Salary',
+    'Freelance / Side Project',
+    'Bonus',
+    'Investment Income',     // dividends, interest, realised gains
+    'Rental Income',
+    'Reimbursement',         // company pays you back
+    'Gift / Windfall',
+    'Other'
+  ],
+
+  expense: [
+    // Daily life (high frequency → easy tagging)
+    'Eat Out',               // restaurants, takeaway, coffee
+    'Groceries',             // supermarket
+    'Transport',             // tube, uber, fuel
+
+    // Fixed / big items
+    'Rent / Housing',
+    'Utilities',             // electricity, water, internet
+    'Insurance',
+    'Subscriptions',
+
+    // Lifestyle
+    'Shopping',
+    'Entertainment',
+    'Travel',
+
+    // Personal investment (yourself)
+    'Education',
+    'Healthcare',
+    'Personal Care',
+
+    // Financial obligations
+    'Debt Repayment',
+
+    'Other'
+  ],
+
+  transfer: [
+    'Own Account Transfer',   // bank ↔ bank
+    'Savings Move',
+    'Investment Funding',     // move cash into broker
+    'Other'
+  ],
+
+  investment: [
+    'Stocks',
+    'ETF / Index Fund',
+    'Crypto',
+    'Bonds',
+    'Real Estate',
+    'Pension / Retirement',
+    'Other'
+  ],
+
+  refund: [
+    'Purchase Refund',
+    'Service Refund',
+    'Insurance Claim',
+    'Tax Refund',
+    'Other'
+  ],
 };
+
 
 const TYPE_LABELS: Record<TransactionType, string> = {
   income: 'Income',

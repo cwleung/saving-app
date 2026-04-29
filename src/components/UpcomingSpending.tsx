@@ -5,13 +5,44 @@ import { useCurrency } from '../hooks/useCurrency';
 import type { UpcomingItem } from '../types';
 
 const EXPENSE_CATEGORIES = [
-  'Food & Dining', 'Housing & Rent', 'Transport', 'Entertainment', 'Healthcare',
-  'Shopping', 'Utilities', 'Education', 'Insurance', 'Personal Care',
-  'Subscriptions', 'Travel', 'Childcare', 'Debt Payment', 'Other',
+  // High-frequency (optimize for speed)
+  'Eat Out',
+  'Groceries',
+  'Transport',
+
+  // Fixed / recurring
+  'Rent / Housing',
+  'Utilities',
+  'Insurance',
+  'Subscriptions',
+
+  // Lifestyle
+  'Shopping',
+  'Entertainment',
+  'Travel',
+
+  // Self investment
+  'Education',
+  'Healthcare',
+  'Personal Care',
+
+  // Financial
+  'Debt Repayment',
+
+  'Other',
 ];
+
 const INCOME_CATEGORIES = [
-  'Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Bonus', 'Tax Refund', 'Other',
+  'Salary',
+  'Freelance / Side Project',
+  'Bonus',
+  'Investment Income',
+  'Rental Income',
+  'Reimbursement',
+  'Gift / Windfall',
+  'Other',
 ];
+
 
 function daysFromNow(dateStr: string): number {
   const now = new Date();

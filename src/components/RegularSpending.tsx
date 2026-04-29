@@ -23,13 +23,44 @@ const FREQ_MULTIPLIER: Record<Frequency, number> = {
 };
 
 const EXPENSE_CATEGORIES = [
-  'Food & Dining', 'Housing & Rent', 'Transport', 'Entertainment', 'Healthcare',
-  'Shopping', 'Utilities', 'Education', 'Insurance', 'Personal Care',
-  'Subscriptions', 'Travel', 'Childcare', 'Debt Payment', 'Other',
+  // High-frequency (optimize for speed)
+  'Eat Out',
+  'Groceries',
+  'Transport',
+
+  // Fixed / recurring
+  'Rent / Housing',
+  'Utilities',
+  'Insurance',
+  'Subscriptions',
+
+  // Lifestyle
+  'Shopping',
+  'Entertainment',
+  'Travel',
+
+  // Self investment
+  'Education',
+  'Healthcare',
+  'Personal Care',
+
+  // Financial
+  'Debt Repayment',
+
+  'Other',
 ];
+
 const INCOME_CATEGORIES = [
-  'Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Business Income', 'Bonus', 'Other',
+  'Salary',
+  'Freelance / Side Project',
+  'Bonus',
+  'Investment Income',
+  'Rental Income',
+  'Reimbursement',
+  'Gift / Windfall',
+  'Other',
 ];
+
 
 interface FormData {
   name: string;
