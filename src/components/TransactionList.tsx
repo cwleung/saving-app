@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, ArrowLeftRight, TrendingUp, RotateCcw, ArrowUpDown, ChevronDown } from 'lucide-react';
+import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, ArrowLeftRight, TrendingUp, RotateCcw, ArrowUpDown, ChevronDown, CheckSquare, Square, Tag, X, Check } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { AddTransaction } from './AddTransaction';
@@ -41,6 +41,14 @@ const AMOUNT_PREFIX: Record<TransactionType, string> = {
   refund: '+',
 };
 
+const ALL_CATEGORIES = [
+  'Food & Dining', 'Housing & Rent', 'Transport', 'Entertainment', 'Healthcare',
+  'Shopping', 'Utilities', 'Education', 'Insurance', 'Personal Care',
+  'Subscriptions', 'Travel', 'Childcare', 'Debt Payment',
+  'Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Business Income', 'Bonus',
+  'Other',
+];
+
 const ALL_FILTER_TYPES = ['all', 'income', 'expense', 'transfer', 'investment', 'refund'] as const;
 type FilterType = typeof ALL_FILTER_TYPES[number];
 type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc' | 'category-asc';
@@ -54,7 +62,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 ];
 
 export function TransactionList({ onAddTransaction }: TransactionListProps) {
-  const { transactions, deleteTransaction } = useAppStore();
+  const { transactions, updateTransaction } = useAppStore();
   const { fmt } = useCurrency();
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
@@ -63,6 +71,12 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
   const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
+
+  // Bulk edit state
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState('');
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
   const filtered = useMemo(() => {
     let list = transactions
@@ -88,6 +102,42 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
   }, [transactions, filter, search, sortKey, dateFrom, dateTo]);
 
   const hasActiveFilters = filter !== 'all' || dateFrom || dateTo || search;
+  const allSelected = filtered.length > 0 && filtered.every((t) => selected.has(t.id));
+  const someSelected = selected.size > 0;
+
+  function toggleBulkMode() {
+    setBulkMode((v) => !v);
+    setSelected(new Set());
+    setBulkCategory('');
+    setShowBulkConfirm(false);
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((t) => t.id)));
+    }
+  }
+
+  function applyBulkCategory() {
+    if (!bulkCategory || selected.size === 0) return;
+    transactions
+      .filter((t) => selected.has(t.id))
+      .forEach((t) => updateTransaction({ ...t, category: bulkCategory }));
+    setSelected(new Set());
+    setBulkCategory('');
+    setShowBulkConfirm(false);
+    setBulkMode(false);
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-4 pb-24 sm:pb-6">
@@ -113,6 +163,19 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
             <span className="hidden sm:inline">Filter</span>
             {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
           </button>
+          {/* Bulk edit toggle */}
+          <button
+            onClick={toggleBulkMode}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-colors ${
+              bulkMode
+                ? 'bg-violet-50 border-violet-300 text-violet-700'
+                : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+            }`}
+            title="Bulk edit categories"
+          >
+            <Tag className="w-4 h-4" />
+            <span className="hidden sm:inline">{bulkMode ? 'Cancel' : 'Bulk'}</span>
+          </button>
           <button
             onClick={onAddTransaction}
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors cursor-pointer shrink-0"
@@ -124,7 +187,6 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
         {/* Expandable filter panel */}
         {showFilters && (
           <div className="bg-gray-50 rounded-2xl p-4 space-y-3 border border-gray-200">
-            {/* Sort */}
             <div className="flex items-center gap-2">
               <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide shrink-0 w-16">Sort</label>
               <div className="relative flex-1">
@@ -140,8 +202,6 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               </div>
             </div>
-
-            {/* Date range */}
             <div className="flex items-center gap-2">
               <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide shrink-0 w-16">Date</label>
               <input
@@ -158,8 +218,6 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
                 className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
             </div>
-
-            {/* Clear filters */}
             {hasActiveFilters && (
               <button
                 onClick={() => { setFilter('all'); setDateFrom(''); setDateTo(''); setSearch(''); }}
@@ -189,6 +247,85 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
         </div>
       </div>
 
+      {/* Bulk edit toolbar */}
+      {bulkMode && (
+        <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleSelectAll}
+                className="flex items-center gap-2 text-sm font-semibold text-violet-700 cursor-pointer hover:text-violet-900 transition-colors"
+              >
+                {allSelected
+                  ? <CheckSquare className="w-4 h-4" />
+                  : <Square className="w-4 h-4" />}
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
+              {someSelected && (
+                <span className="text-xs text-violet-500 font-medium">
+                  {selected.size} selected
+                </span>
+              )}
+            </div>
+            <button onClick={toggleBulkMode} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {someSelected && (
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <select
+                  value={bulkCategory}
+                  onChange={(e) => { setBulkCategory(e.target.value); setShowBulkConfirm(false); }}
+                  className="w-full appearance-none bg-white border border-violet-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400 cursor-pointer pr-8"
+                >
+                  <option value="">— Pick new category —</option>
+                  {ALL_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              </div>
+
+              {bulkCategory && !showBulkConfirm && (
+                <button
+                  onClick={() => setShowBulkConfirm(true)}
+                  className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer shrink-0"
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  Apply
+                </button>
+              )}
+
+              {showBulkConfirm && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-violet-700 font-medium whitespace-nowrap">
+                    Set {selected.size} to "{bulkCategory}"?
+                  </span>
+                  <button
+                    onClick={applyBulkCategory}
+                    className="flex items-center gap-1 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-colors"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Yes
+                  </button>
+                  <button
+                    onClick={() => setShowBulkConfirm(false)}
+                    className="flex items-center gap-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" /> No
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!someSelected && (
+            <p className="text-xs text-violet-400">Select transactions below to reassign their category.</p>
+          )}
+        </div>
+      )}
+
       {/* Result count */}
       <p className="text-xs text-gray-400">
         {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
@@ -205,10 +342,22 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
           {filtered.map((tx, i) => (
             <div
               key={tx.id}
-              className={`flex items-center gap-3 p-4 ${
+              onClick={() => bulkMode && toggleSelect(tx.id)}
+              className={`flex items-center gap-3 p-4 transition-colors ${
                 i < filtered.length - 1 ? 'border-b border-gray-100' : ''
+              } ${bulkMode ? 'cursor-pointer' : ''} ${
+                bulkMode && selected.has(tx.id) ? 'bg-violet-50' : bulkMode ? 'hover:bg-gray-50' : ''
               }`}
             >
+              {/* Checkbox (bulk mode only) */}
+              {bulkMode && (
+                <div className="shrink-0 text-violet-500">
+                  {selected.has(tx.id)
+                    ? <CheckSquare className="w-4 h-4" />
+                    : <Square className="w-4 h-4 text-gray-300" />}
+                </div>
+              )}
+
               <div className={`rounded-full p-2 shrink-0 ${TYPE_BG[tx.type]}`}>
                 {TYPE_ICON[tx.type]}
               </div>
@@ -233,20 +382,29 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
                 {AMOUNT_PREFIX[tx.type]}
                 {fmt(tx.amount)}
               </span>
-              <button
-                onClick={() => setEditTx(tx)}
-                className="text-gray-300 hover:text-blue-400 ml-1 shrink-0 cursor-pointer"
-                title="Edit"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => deleteTransaction(tx.id)}
-                className="text-gray-300 hover:text-red-400 shrink-0 cursor-pointer"
-                title="Delete"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+
+              {/* Edit/delete hidden in bulk mode */}
+              {!bulkMode && (
+                <>
+                  <button
+                    onClick={() => setEditTx(tx)}
+                    className="text-gray-300 hover:text-blue-400 ml-1 shrink-0 cursor-pointer"
+                    title="Edit"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const { deleteTransaction } = useAppStore.getState();
+                      deleteTransaction(tx.id);
+                    }}
+                    className="text-gray-300 hover:text-red-400 shrink-0 cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
