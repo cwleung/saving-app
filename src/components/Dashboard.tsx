@@ -549,12 +549,15 @@ export function Dashboard() {
                   <Tooltip
                     contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={(v: any) => {
-                      const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
-                      const val = typeof v === 'number' ? v : 0;
-                      const name = expenseByCategory[0].name
-                      return [`${name} · ${total > 0 ? ((val / total) * 100).toFixed(1) : 0}%`];
-                    }}
+                  formatter={(value, name) => {
+                    const val = typeof value === 'number' ? value : 0;
+
+                    const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
+                    const percent = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
+
+                    return [`${name} · ${percent}%`];
+                  }}
+
                     labelStyle={{ fontWeight: 600, color: '#374151' }}
                   />
                 </PieChart>
