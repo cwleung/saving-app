@@ -42,16 +42,19 @@ const AMOUNT_PREFIX: Record<TransactionType, string> = {
 };
 
 const ALL_CATEGORIES = [
-  'Food & Dining', 'Housing & Rent', 'Transport', 'Entertainment', 'Healthcare',
-  'Shopping', 'Utilities', 'Education', 'Insurance', 'Personal Care',
-  'Subscriptions', 'Travel', 'Childcare', 'Debt Payment',
-  'Salary', 'Freelance', 'Investment Returns', 'Rental Income', 'Business Income', 'Bonus',
+  // Expenses
+  'Eat Out', 'Groceries', 'Transport', 'Rent / Housing', 'Utilities',
+  'Insurance', 'Subscriptions', 'Shopping', 'Entertainment', 'Travel',
+  'Education', 'Healthcare', 'Personal Care', 'Debt Repayment',
+  // Income
+  'Salary', 'Freelance / Side Project', 'Bonus', 'Investment Income',
+  'Rental Income', 'Reimbursement', 'Gift / Windfall',
   'Other',
 ];
 
 const ALL_FILTER_TYPES = ['all', 'income', 'expense', 'transfer', 'investment', 'refund'] as const;
 type FilterType = typeof ALL_FILTER_TYPES[number];
-type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc' | 'category-asc' | 'name-asc' | 'name-desc';
+type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc' | 'category-asc' | 'category-desc' | 'name-asc' | 'name-desc';
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'date-desc',    label: 'Date: Newest first' },
@@ -59,6 +62,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'amount-desc',  label: 'Amount: High to low' },
   { value: 'amount-asc',   label: 'Amount: Low to high' },
   { value: 'category-asc', label: 'Category: A–Z' },
+  { value: 'category-desc', label: 'Category: Z–A' },
   { value: 'name-asc',     label: 'Name: A–Z' },
   { value: 'name-desc',    label: 'Name: Z–A' },
 ];
@@ -98,7 +102,8 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
       case 'date-asc':     list = [...list].sort((a, b) => a.date.localeCompare(b.date)); break;
       case 'amount-desc':  list = [...list].sort((a, b) => b.amount - a.amount); break;
       case 'amount-asc':   list = [...list].sort((a, b) => a.amount - b.amount); break;
-      case 'category-asc': list = [...list].sort((a, b) => a.category.localeCompare(b.category)); break;
+      case 'category-asc':  list = [...list].sort((a, b) => a.category.localeCompare(b.category)); break;
+      case 'category-desc': list = [...list].sort((a, b) => b.category.localeCompare(a.category)); break;
       case 'name-asc':     list = [...list].sort((a, b) => (a.description || a.category).localeCompare(b.description || b.category)); break;
       case 'name-desc':    list = [...list].sort((a, b) => (b.description || b.category).localeCompare(a.description || a.category)); break;
     }
