@@ -9,6 +9,16 @@ interface VersionEntry {
 
 const VERSION_LOG: VersionEntry[] = [
   {
+    version: '1.5.0',
+    date: 'April 29, 2026',
+    isLatest: true,
+    changes: [
+      { category: 'UX', text: 'Default currency is now GBP (£) for new users (still configurable from the header)' },
+      { category: 'Fix', text: 'Dashboard Avg Income now excludes internal pot/goal draw transactions' },
+      { category: 'UX', text: 'Dashboard visual polish: clearer executive summary, cleaner card hierarchy, and more professional section structure' },
+    ],
+  },
+  {
     version: '1.4.0',
     date: 'April 10, 2026',
 

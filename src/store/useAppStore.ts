@@ -140,7 +140,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   regularSpendings: [],
   upcomingItems: [],
   loading: false,
-  currency: localStorage.getItem('currency') ?? 'USD',
+  currency: localStorage.getItem('currency') ?? 'GBP',
 
   setCurrency: (code) => {
     localStorage.setItem('currency', code);
