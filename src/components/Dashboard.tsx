@@ -15,7 +15,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock, CalendarDays } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
@@ -57,10 +57,6 @@ export function Dashboard() {
   const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
-  const todayLabel = useMemo(
-    () => new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
-    []
-  );
 
   const totalIncome = useMemo(
     () => transactions.filter((t) => t.type === 'income' || t.type === 'refund').reduce((s, t) => s + t.amount, 0),
@@ -325,44 +321,16 @@ export function Dashboard() {
 
   const SPANS: TimeSpan[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
   const xAxisInterval = chartSpan === '1M' ? 4 : chartSpan === '3M' ? 1 : undefined;
-  const projectedLabel = projections.projNet >= 0 ? 'Projected Surplus' : 'Projected Deficit';
+  const monthProgressPct = Math.round(projections.monthProgress * 100);
+  const spendingTrendText =
+    projections.spendingTrend === 0
+      ? 'Flat vs last month'
+      : `${projections.spendingTrend > 0 ? '+' : ''}${projections.spendingTrend.toFixed(1)}% vs last month`;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-28 sm:pb-10">
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-5 text-white border border-slate-700 shadow-sm">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Financial Dashboard</p>
-            <h2 className="text-xl font-semibold mt-1">Executive Summary</h2>
-          </div>
-          <div className="inline-flex items-center gap-1.5 text-xs text-slate-300">
-            <CalendarDays className="w-3.5 h-3.5" />
-            {todayLabel}
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-white/10 rounded-xl px-3 py-2.5">
-            <p className="text-[11px] uppercase tracking-wide text-slate-300">Month-End</p>
-            <p className={`text-base font-semibold mt-0.5 ${projections.projNet >= 0 ? 'text-emerald-300' : 'text-orange-300'}`}>
-              {fmt(projections.projNet)}
-            </p>
-            <p className="text-[11px] text-slate-300 mt-0.5">{projectedLabel}</p>
-          </div>
-          <div className="bg-white/10 rounded-xl px-3 py-2.5">
-            <p className="text-[11px] uppercase tracking-wide text-slate-300">Savings Rate</p>
-            <p className="text-base font-semibold mt-0.5">{projections.savingsRate.toFixed(1)}%</p>
-            <p className="text-[11px] text-slate-300 mt-0.5">From recent monthly averages</p>
-          </div>
-          <div className="bg-white/10 rounded-xl px-3 py-2.5">
-            <p className="text-[11px] uppercase tracking-wide text-slate-300">Data Coverage</p>
-            <p className="text-base font-semibold mt-0.5">{projections.trackedMonths} month{projections.trackedMonths === 1 ? '' : 's'}</p>
-            <p className="text-[11px] text-slate-300 mt-0.5">Tracked in transaction history</p>
-          </div>
-        </div>
-      </div>
-
+    <div className="max-w-5xl mx-auto px-4 py-5 space-y-4 pb-28 sm:pb-10">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <SummaryCard
           title="Total Income"
           value={fmt(totalIncome)}
@@ -389,11 +357,40 @@ export function Dashboard() {
         />
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <InsightPill
+          label="Month Progress"
+          value={`${monthProgressPct}%`}
+          sub={`Day ${projections.dayOfMonth}/${projections.daysInMonth}`}
+        />
+        <InsightPill
+          label="Projected Net"
+          value={fmt(projections.projNet)}
+          sub={projections.projNet >= 0 ? 'Surplus this month' : 'Deficit this month'}
+          tone={projections.projNet >= 0 ? 'emerald' : 'orange'}
+        />
+        <InsightPill
+          label="Savings Rate"
+          value={`${projections.savingsRate.toFixed(1)}%`}
+          sub="From 3-month averages"
+          tone={projections.savingsRate >= 20 ? 'emerald' : projections.savingsRate >= 10 ? 'amber' : 'red'}
+        />
+        <InsightPill
+          label="Spending Trend"
+          value={spendingTrendText}
+          sub={`${projections.trackedMonths} month${projections.trackedMonths === 1 ? '' : 's'} of data`}
+          tone={projections.spendingTrend <= 0 ? 'emerald' : 'red'}
+        />
+      </div>
+
       {/* Projections & Insights */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-5">
-        <div className="flex items-center gap-2">
-          <BarChart2 className="w-4 h-4 text-gray-500" />
-          <h3 className="font-semibold text-gray-700">Projections & Insights</h3>
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-gray-500" />
+            <h3 className="font-semibold text-gray-700">Projections & Insights</h3>
+          </div>
+          <p className="text-[11px] text-gray-400">Last 3 months</p>
         </div>
 
         <div>
@@ -511,13 +508,6 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* Charts Section */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700">Trends & Composition</h3>
-          <p className="text-xs text-gray-400">Visual breakdown of income, expenses, and category mix</p>
-        </div>
-      </div>
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Income vs Expense Area Chart */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -670,14 +660,39 @@ function SummaryCard({ title, value, icon, color }: SummaryCardProps) {
     purple:  'bg-purple-100 text-purple-600',
   };
   return (
-    <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${accent[color] ?? accent.blue}`}>
+    <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm flex items-center gap-2.5">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${accent[color] ?? accent.blue}`}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">{title}</p>
-        <p className="text-xl font-bold text-gray-800 mt-1 truncate">{value}</p>
+        <p className="text-lg sm:text-xl font-bold text-gray-800 mt-1 truncate">{value}</p>
       </div>
+    </div>
+  );
+}
+
+interface InsightPillProps {
+  label: string;
+  value: string;
+  sub: string;
+  tone?: 'emerald' | 'red' | 'orange' | 'amber' | 'blue';
+}
+
+function InsightPill({ label, value, sub, tone = 'blue' }: InsightPillProps) {
+  const tones: Record<NonNullable<InsightPillProps['tone']>, string> = {
+    emerald: 'text-emerald-700',
+    red: 'text-red-600',
+    orange: 'text-orange-600',
+    amber: 'text-amber-700',
+    blue: 'text-blue-700',
+  };
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl px-3 py-2.5">
+      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">{label}</p>
+      <p className={`text-sm font-bold mt-0.5 truncate ${tones[tone]}`}>{value}</p>
+      <p className="text-[11px] text-gray-400 mt-0.5 truncate">{sub}</p>
     </div>
   );
 }
