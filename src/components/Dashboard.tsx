@@ -15,7 +15,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Clock } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
@@ -63,6 +63,7 @@ export function Dashboard() {
     [transactions]
   );
 
+  // 1. totalExpenses — Clean exclusion of goal/pot deposits
   const totalExpenses = useMemo(
     () => transactions
       .filter((t) => t.type === 'expense' && !t.goalId && !t.potId)
@@ -79,7 +80,7 @@ export function Dashboard() {
     return total ? Math.round((current / total) * 100) : 0;
   }, [goals, transactions]);
 
-  // ── Chart data ──────────────────────────────────────────────────────
+  // ── Chart data – daily / weekly / monthly ────────────────────────────
   const { chartData, chartTitle } = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -131,6 +132,7 @@ export function Dashboard() {
       
       if (k in buckets) {
         if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
+        // Ensure chart excludes goal/pot transfers
         else if (t.type === 'expense' && !t.goalId && !t.potId) buckets[k].expense += t.amount;
       }
     });
@@ -155,6 +157,7 @@ export function Dashboard() {
     };
   }, [transactions, chartSpan]);
 
+  // ── Pie chart data by time span ──────────────────────────────────────
   const expenseByCategory = useMemo(() => {
     const now = new Date();
     const spanToDays: Record<TimeSpan, number> = { '1W': 7, '1M': 30, '3M': 91, '6M': 183, '1Y': 365, ALL: 99999 };
@@ -171,10 +174,12 @@ export function Dashboard() {
       .sort((a, b) => b.value - a.value);
   }, [transactions, pieSpan]);
 
-  // ── Projections ──────────────────────────────────────────────────────
+// ── Projections ──────────────────────────────────────────────────────
   const projections = useMemo(() => {
     const now = new Date();
     const thisMonthK = monthKey(now);
+
+    // Date Math for the current month
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const daysInMonth = endOfMonth.getDate();
     const dayOfMonth = now.getDate();
@@ -191,14 +196,22 @@ export function Dashboard() {
     let totalHistoryGoalDeposits = 0;
     const txMonths = new Set<string>();
 
+    // Step 1: Analyze historical averages (Last 3 months)
+    // We exclude recurringId because recurring items are handled by 'upcomingItems' logic
     transactions.forEach((t) => {
       const k = monthKey(new Date(t.date));
       txMonths.add(k);
+      
       if (last3Keys.includes(k)) {
-        if (t.type === 'income' || t.type === 'refund') totalHistoryIncome += t.amount;
-        else if (t.type === 'expense') {
-          if (t.goalId || t.potId) totalHistoryGoalDeposits += t.amount;
-          else if (!t.recurringId) totalHistoryExpense += t.amount;
+        if (t.type === 'income' || t.type === 'refund') {
+          totalHistoryIncome += t.amount;
+        } else if (t.type === 'expense') {
+          if (t.goalId || t.potId) {
+            totalHistoryGoalDeposits += t.amount;
+          } else if (!t.recurringId) {
+            // We only average "manual" expenses for the daily run-rate
+            totalHistoryExpense += t.amount;
+          }
         }
       }
     });
@@ -208,8 +221,11 @@ export function Dashboard() {
     const avgMonthlyExpense = totalHistoryExpense / activeMonths;
     const avgMonthlyGoalDeposits = totalHistoryGoalDeposits / activeMonths;
     
-    const estimatedRemainingManualSpend = (avgMonthlyExpense / daysInMonth) * daysRemaining;
+    // Pro-rated estimation for remaining manual spending this month
+    const avgDailyManualSpend = avgMonthlyExpense / daysInMonth;
+    const estimatedRemainingManualSpend = avgDailyManualSpend * daysRemaining;
 
+    // Step 2: Current Month "Actuals" (Transactions already recorded)
     const thisMonthActualIncome = transactions
       .filter((t) => monthKey(new Date(t.date)) === thisMonthK && (t.type === 'income' || t.type === 'refund'))
       .reduce((s, t) => s + t.amount, 0);
@@ -218,26 +234,36 @@ export function Dashboard() {
       .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense' && !t.goalId && !t.potId)
       .reduce((s, t) => s + t.amount, 0);
 
+    // Step 3: "Upcoming" items for THIS calendar month only
     let upcomingExpenseThisMonth = 0;
     let upcomingIncomeThisMonth = 0;
+    
     upcomingItems
       .filter((u) => {
-        const d = new Date(u.dueDate);
-        return !u.isPaid && d <= endOfMonth && d >= new Date(now.setHours(0,0,0,0));
+        const dueDate = new Date(u.dueDate);
+        return (
+          !u.isPaid && 
+          dueDate <= endOfMonth && 
+          dueDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+        );
       })
       .forEach((u) => {
         if (u.transactionType === 'expense') upcomingExpenseThisMonth += u.amount;
         else upcomingIncomeThisMonth += u.amount;
       });
 
+    // Step 4: Final Projected Totals
+    // Proj = What happened + What is scheduled to happen + Estimate of daily variable spend
     const projIncome = thisMonthActualIncome + upcomingIncomeThisMonth;
     const projExpense = thisMonthActualExpense + upcomingExpenseThisMonth + estimatedRemainingManualSpend;
     const projNet = projIncome - projExpense;
 
+    // Additional Insight Math
     const avgMonthlySavings = avgMonthlyIncome - avgMonthlyExpense;
     const annualSavings = avgMonthlySavings * 12;
     const savingsRate = avgMonthlyIncome > 0 ? (avgMonthlySavings / avgMonthlyIncome) * 100 : 0;
 
+    // Spending trend (Excluding goals/pots)
     const lastMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
@@ -249,6 +275,7 @@ export function Dashboard() {
     });
     const spendingTrend = prevExp > 0 ? ((lastExp - prevExp) / prevExp) * 100 : 0;
 
+    // Goal timelines
     const goalProjections = goals.map((g) => {
       const remaining = Math.max(0, g.targetAmount - potBalance(g.potId ?? ''));
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
@@ -258,19 +285,40 @@ export function Dashboard() {
       return { id: g.id, name: g.name, monthsNeeded, remaining, onTrack };
     });
 
-    const FREQ_MONTHLY: Record<string, number> = { daily: 30, weekly: 4.33, biweekly: 2.16, monthly: 1, quarterly: 1/3, yearly: 1/12 };
-    let recExp = 0, recInc = 0;
+    // Recurring Totals for the info cards
+    const FREQ_MONTHLY: Record<string, number> = {
+      daily: 30, weekly: 4.33, biweekly: 2.16,
+      monthly: 1, quarterly: 1 / 3, yearly: 1 / 12,
+    };
+    let recurringMonthlyExpense = 0;
+    let recurringMonthlyIncome = 0;
     regularSpendings.forEach((r) => {
-      const val = r.amount * (FREQ_MONTHLY[r.frequency] ?? 1);
-      if (r.transactionType === 'expense') recExp += val; else recInc += val;
+      const monthly = r.amount * (FREQ_MONTHLY[r.frequency] ?? 1);
+      if (r.transactionType === 'expense') recurringMonthlyExpense += monthly;
+      else recurringMonthlyIncome += monthly;
     });
 
     return {
-      avgMonthlyIncome, avgMonthlyExpense, avgMonthlyGoalDeposits, avgMonthlySavings, annualSavings, savingsRate, spendingTrend,
-      goalProjections, recurringMonthlyExpense: recExp, recurringMonthlyIncome: recInc,
-      upcomingExpense30: upcomingExpenseThisMonth, upcomingIncome30: upcomingIncomeThisMonth,
-      projIncome, projExpense, projNet, monthProgress, dayOfMonth, daysInMonth,
-      thisMonthActualIncome, thisMonthActualExpense,
+      avgMonthlyIncome,
+      avgMonthlyExpense,
+      avgMonthlyGoalDeposits,
+      avgMonthlySavings,
+      annualSavings,
+      savingsRate,
+      spendingTrend,
+      goalProjections,
+      recurringMonthlyExpense,
+      recurringMonthlyIncome,
+      upcomingExpense30: upcomingExpenseThisMonth,
+      upcomingIncome30: upcomingIncomeThisMonth,
+      projIncome,
+      projExpense,
+      projNet,
+      monthProgress,
+      dayOfMonth,
+      daysInMonth,
+      thisMonthActualIncome,
+      thisMonthActualExpense,
     };
   }, [transactions, goals, regularSpendings, upcomingItems]);
 
@@ -281,10 +329,30 @@ export function Dashboard() {
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-28 sm:pb-10">
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SummaryCard title="Total Income" value={fmt(totalIncome)} icon={<TrendingUp className="w-5 h-5 text-emerald-600" />} color="emerald" />
-        <SummaryCard title="Total Expenses" value={fmt(totalExpenses)} icon={<TrendingDown className="w-5 h-5 text-red-500" />} color="red" />
-        <SummaryCard title="Net Savings" value={fmt(netSavings)} icon={<DollarSign className="w-5 h-5 text-blue-600" />} color={netSavings >= 0 ? 'blue' : 'orange'} />
-        <SummaryCard title="Goals Progress" value={`${totalGoalProgress}%`} icon={<Target className="w-5 h-5 text-purple-600" />} color="purple" />
+        <SummaryCard
+          title="Total Income"
+          value={fmt(totalIncome)}
+          icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
+          color="emerald"
+        />
+        <SummaryCard
+          title="Total Expenses"
+          value={fmt(totalExpenses)}
+          icon={<TrendingDown className="w-5 h-5 text-red-500" />}
+          color="red"
+        />
+        <SummaryCard
+          title="Net Savings"
+          value={fmt(netSavings)}
+          icon={<DollarSign className="w-5 h-5 text-blue-600" />}
+          color={netSavings >= 0 ? 'blue' : 'orange'}
+        />
+        <SummaryCard
+          title="Goals Progress"
+          value={`${totalGoalProgress}%`}
+          icon={<Target className="w-5 h-5 text-purple-600" />}
+          color="purple"
+        />
       </div>
 
       {/* Projections & Insights */}
@@ -299,8 +367,7 @@ export function Dashboard() {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">This Month</p>
             <span className="text-[11px] text-gray-400">Day {projections.dayOfMonth} of {projections.daysInMonth} · {Math.round(projections.monthProgress * 100)}% through</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Dynamic Projections with Color Warnings */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="bg-emerald-50 rounded-xl p-3">
               <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Income</p>
               <p className="text-sm font-bold text-emerald-700">{fmt(projections.thisMonthActualIncome)}</p>
@@ -309,23 +376,17 @@ export function Dashboard() {
                 <div className="h-1 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, projections.projIncome > 0 ? (projections.thisMonthActualIncome / projections.projIncome) * 100 : 0)}%` }} />
               </div>
             </div>
-
-            <div className={`rounded-xl p-3 ${projections.thisMonthActualExpense > (projections.projExpense * projections.monthProgress * 1.1) ? 'bg-orange-50' : 'bg-red-50'}`}>
-              <div className="flex justify-between items-start">
-                <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Expenses</p>
-                {projections.thisMonthActualExpense > projections.projExpense && <AlertCircle className="w-3 h-3 text-orange-500" />}
-              </div>
-              <p className={`text-sm font-bold ${projections.thisMonthActualExpense > projections.projExpense ? 'text-orange-700' : 'text-red-600'}`}>{fmt(projections.thisMonthActualExpense)}</p>
+            <div className="bg-red-50 rounded-xl p-3">
+              <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Expenses</p>
+              <p className="text-sm font-bold text-red-600">{fmt(projections.thisMonthActualExpense)}</p>
               <p className="text-[10px] text-gray-400 mt-0.5">of {fmt(projections.projExpense)} proj.</p>
               <div className="mt-1.5 w-full bg-red-100 rounded-full h-1">
-                <div className={`h-1 rounded-full ${projections.thisMonthActualExpense > projections.projExpense ? 'bg-orange-500' : 'bg-red-500'}`} 
-                     style={{ width: `${Math.min(100, projections.projExpense > 0 ? (projections.thisMonthActualExpense / projections.projExpense) * 100 : 0)}%` }} />
+                <div className="h-1 rounded-full bg-red-500" style={{ width: `${Math.min(100, projections.projExpense > 0 ? (projections.thisMonthActualExpense / projections.projExpense) * 100 : 0)}%` }} />
               </div>
             </div>
-
-            <div className={`rounded-xl p-3 ${projections.projNet >= 0 ? 'bg-blue-50' : 'bg-rose-50'}`}>
-              <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Net Flow</p>
-              <p className={`text-sm font-bold ${projections.projNet >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
+            <div className={`rounded-xl p-3 ${projections.projNet >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
+              <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Net</p>
+              <p className={`text-sm font-bold ${projections.projNet >= 0 ? 'text-blue-700' : 'text-orange-600'}`}>
                 {fmt(projections.thisMonthActualIncome - projections.thisMonthActualExpense)}
               </p>
               <p className="text-[10px] text-gray-400 mt-0.5">proj. {fmt(projections.projNet)}</p>
@@ -339,42 +400,100 @@ export function Dashboard() {
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Monthly Averages — Last 3 Months</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="manual items" color="emerald" />
+            <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="manual transactions" color="emerald" />
             <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="excl. goal deposits" color="red" />
             <ProjectionCard label="Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
-            <ProjectionCard label="Savings Rate" value={`${projections.savingsRate.toFixed(1)}%`} sub="of monthly income" color={projections.savingsRate >= 20 ? 'emerald' : 'amber'} />
+            <ProjectionCard
+              label="Savings Rate"
+              value={`${projections.savingsRate.toFixed(1)}%`}
+              sub="of monthly income"
+              color={projections.savingsRate >= 20 ? 'emerald' : projections.savingsRate >= 10 ? 'amber' : 'red'}
+            />
           </div>
+          {projections.avgMonthlyGoalDeposits > 0 && (
+            <div className="mt-2">
+              <ProjectionCard label="Avg Goal Deposits" value={fmt(projections.avgMonthlyGoalDeposits)} sub="per month to goals" color="purple" />
+            </div>
+          )}
         </div>
 
-        {/* Committed Costs */}
-        {(projections.recurringMonthlyExpense > 0 || projections.upcomingExpense30 > 0) && (
+        {(projections.recurringMonthlyExpense > 0 || projections.recurringMonthlyIncome > 0 || projections.upcomingExpense30 > 0 || projections.upcomingIncome30 > 0) && (
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Committed Costs</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <ProjectionCard label={<span className="flex items-center gap-1"><RepeatIcon className="w-3 h-3" /> Monthly Bills</span>} value={fmt(projections.recurringMonthlyExpense)} sub="recurring total" color="red" />
-              <ProjectionCard label={<span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Left This Month</span>} value={fmt(projections.upcomingExpense30)} sub="unpaid scheduled" color="orange" />
+              {projections.recurringMonthlyIncome > 0 && (
+                <ProjectionCard label={<span className="flex items-center gap-1"><RepeatIcon className="w-3 h-3" /> Recurring In</span>} value={fmt(projections.recurringMonthlyIncome)} sub="per month" color="emerald" />
+              )}
+              {projections.recurringMonthlyExpense > 0 && (
+                <ProjectionCard label={<span className="flex items-center gap-1"><RepeatIcon className="w-3 h-3" /> Recurring Out</span>} value={fmt(projections.recurringMonthlyExpense)} sub="per month" color="red" />
+              )}
+              {projections.upcomingIncome30 > 0 && (
+                <ProjectionCard label={<span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Upcoming In</span>} value={fmt(projections.upcomingIncome30)} sub="next 30 days" color="emerald" />
+              )}
+              {projections.upcomingExpense30 > 0 && (
+                <ProjectionCard label={<span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Upcoming Out</span>} value={fmt(projections.upcomingExpense30)} sub="next 30 days" color="red" />
+              )}
             </div>
           </div>
         )}
 
         <div className="flex flex-wrap gap-2 items-start">
           {projections.spendingTrend !== 0 && (
-            <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-1 ${projections.spendingTrend > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
+            <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-1 ${
+              projections.spendingTrend > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
+            }`}>
               {projections.spendingTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month
+              Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month (excl. goals)
             </div>
           )}
         </div>
+
+        {projections.goalProjections.filter((g) => g.remaining > 0).length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <Target className="w-3 h-3" /> Goal Timeline
+            </p>
+            <div className="space-y-2">
+              {projections.goalProjections.filter((g) => g.remaining > 0).map((g) => (
+                <div key={g.id} className="flex justify-between items-center text-xs">
+                  <span className="text-gray-600 truncate max-w-[55%]">{g.name}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {g.onTrack !== null && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${g.onTrack ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                        {g.onTrack ? 'On track' : 'Behind'}
+                      </span>
+                    )}
+                    <span className="font-medium text-gray-800">
+                      {g.monthsNeeded === Infinity ? 'N/A'
+                        : g.monthsNeeded <= 0 ? '✓ Reached'
+                        : g.monthsNeeded < 12 ? `~${g.monthsNeeded}mo`
+                        : `~${(g.monthsNeeded / 12).toFixed(1)}yr`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Charts */}
+      {/* Charts Section */}
       <div className="grid lg:grid-cols-2 gap-4">
+        {/* Income vs Expense Area Chart */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-1 flex-wrap gap-2">
             <h3 className="font-semibold text-gray-700 text-sm">Income vs Expenses</h3>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {SPANS.map((s) => (
-                <button key={s} onClick={() => setChartSpan(s)} className={`px-2 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${chartSpan === s ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-100'}`}>{s}</button>
+                <button
+                  key={s}
+                  onClick={() => setChartSpan(s)}
+                  className={`px-2 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
+                    chartSpan === s ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  {s}
+                </button>
               ))}
             </div>
           </div>
@@ -382,17 +501,25 @@ export function Dashboard() {
           <ResponsiveContainer width="100%" height={220}>
             <ComposedChart data={chartData}>
               <defs>
-                <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient>
-                <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} /><stop offset="95%" stopColor="#ef4444" stopOpacity={0} /></linearGradient>
+                <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
               <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval={xAxisInterval} />
-              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
-                formatter={(v: any) => [fmt(v)]}
+                formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
+                labelStyle={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}
+                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
               />
-              <ReferenceLine y={0} stroke="#e5e7eb" />
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
               <Area type="monotone" dataKey="income" stroke="#10b981" fill="url(#incomeGrad)" strokeWidth={2} dot={false} name="income" />
               <Area type="monotone" dataKey="expense" stroke="#ef4444" fill="url(#expenseGrad)" strokeWidth={2} dot={false} name="expense" />
               <Line type="monotone" dataKey="net" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" name="net" />
@@ -400,12 +527,21 @@ export function Dashboard() {
           </ResponsiveContainer>
         </div>
 
+        {/* Pie Chart */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
             <h3 className="font-semibold text-gray-700 text-sm">Expenses by Category</h3>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {SPANS.map((s) => (
-                <button key={s} onClick={() => setPieSpan(s)} className={`px-2 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${pieSpan === s ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-100'}`}>{s}</button>
+                <button
+                  key={s}
+                  onClick={() => setPieSpan(s)}
+                  className={`px-2 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
+                    pieSpan === s ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  {s}
+                </button>
               ))}
             </div>
           </div>
@@ -414,40 +550,88 @@ export function Dashboard() {
               <ResponsiveContainer width="100%" height={190}>
                 <PieChart>
                   <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
-                    {expenseByCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="white" strokeWidth={2} />)}
+                    {expenseByCategory.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="white" strokeWidth={2} />
+                    ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, fontSize: 12 }}
-                    formatter={(val: number, name: string) => {
+                    contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                    formatter={(value, name) => {
+                      const val = typeof value === 'number' ? value : 0;
                       const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
-                      return [`${fmt(val)} (${((val/total)*100).toFixed(1)}%)`, name];
+                      const percent = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
+                      return [`${name} · ${percent}%`];
                     }}
                   />
                 </PieChart>
               </ResponsiveContainer>
               <div className="mt-3 space-y-1.5">
-                {expenseByCategory.slice(0, 5).map((e, i) => (
-                  <div key={e.name} className="flex items-center gap-2 text-xs">
-                    <span className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                    <span className="flex-1 text-gray-600 truncate">{e.name}</span>
-                    <span className="font-semibold text-gray-700">{fmt(e.value)}</span>
-                  </div>
-                ))}
+                {expenseByCategory.slice(0, 5).map((e, i) => {
+                  const total = expenseByCategory.reduce((s, c) => s + c.value, 0);
+                  const pct = total > 0 ? (e.value / total) * 100 : 0;
+                  return (
+                    <div key={e.name} className="flex items-center gap-2 text-xs">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      <span className="flex-1 text-gray-600 truncate">{e.name}</span>
+                      <span className="text-gray-400 w-9 text-right shrink-0">{pct.toFixed(1)}%</span>
+                      <span className="font-semibold text-gray-700 w-16 text-right shrink-0">{fmt(e.value)}</span>
+                    </div>
+                  );
+                })}
               </div>
             </>
-          ) : <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">No expense data</div>}
+          ) : (
+            <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">No expense data for this period</div>
+          )}
         </div>
       </div>
+
+      {/* Bar Chart Monthly Breakdown */}
+      {chartData.some((d) => d.income > 0 || d.expense > 0) && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-gray-700 text-sm">Monthly Breakdown</h3>
+            <p className="text-xs text-gray-400">{chartTitle}</p>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barGap={2} barCategoryGap="32%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval={xAxisInterval} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
+                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+              />
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
+              <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} name="income" maxBarSize={36} />
+              <Bar dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} name="expense" maxBarSize={36} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
 
-interface SummaryCardProps { title: string; value: string; icon: React.ReactNode; color: string; }
+interface SummaryCardProps {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
 function SummaryCard({ title, value, icon, color }: SummaryCardProps) {
-  const accent: Record<string, string> = { emerald: 'bg-emerald-500', red: 'bg-red-400', blue: 'bg-blue-500', orange: 'bg-orange-400', purple: 'bg-purple-500' };
+  const accent: Record<string, string> = {
+    emerald: 'bg-emerald-500',
+    red:     'bg-red-400',
+    blue:    'bg-blue-500',
+    orange:  'bg-orange-400',
+    purple:  'bg-purple-500',
+  };
   return (
     <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-start gap-3 overflow-hidden relative">
-      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${accent[color]}`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${accent[color] ?? accent.blue}`} />
       <div className="flex-1 min-w-0 pl-1">
         <p className="text-xs text-gray-400 font-medium">{title}</p>
         <p className="text-xl font-bold text-gray-800 mt-1 truncate">{value}</p>
@@ -457,13 +641,26 @@ function SummaryCard({ title, value, icon, color }: SummaryCardProps) {
   );
 }
 
-interface ProjectionCardProps { label: React.ReactNode; value: string; sub: string; color: string; }
+interface ProjectionCardProps {
+  label: React.ReactNode;
+  value: string;
+  sub: string;
+  color: string;
+}
+
 function ProjectionCard({ label, value, sub, color }: ProjectionCardProps) {
-  const colors: Record<string, string> = { emerald: 'text-emerald-700', red: 'text-red-500', blue: 'text-blue-700', orange: 'text-orange-500', amber: 'text-amber-600' };
+  const colors: Record<string, string> = {
+    emerald: 'text-emerald-700',
+    red: 'text-red-500',
+    blue: 'text-blue-700',
+    orange: 'text-orange-500',
+    amber: 'text-amber-600',
+    purple: 'text-purple-700',
+  };
   return (
     <div className="bg-gray-50 rounded-xl p-3">
       <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`font-bold text-sm ${colors[color]}`}>{value}</p>
+      <p className={`font-bold text-sm ${colors[color] ?? colors.blue}`}>{value}</p>
       <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
     </div>
   );
