@@ -18,21 +18,46 @@ function clean<T extends object>(obj: T): T {
 import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Frequency, Pot } from '../types';
 
 // ─── Recurring-transaction auto-generation ───────────────────────────────────
-function getOccurrences(frequency: Frequency, from: Date, to: Date): Date[] {
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function addMonthsClamped(d: Date, months: number, anchorDay: number): Date {
+  const next = new Date(d);
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(anchorDay, lastDay));
+  return next;
+}
+
+function getOccurrences(frequency: Frequency, from: Date, to: Date, anchorDay: number): Date[] {
   const dates: Date[] = [];
   const current = new Date(from);
   current.setHours(0, 0, 0, 0);
   const end = new Date(to);
   end.setHours(0, 0, 0, 0);
-  while (current < end && dates.length < 100) {
+  while (current <= end && dates.length < 100) {
     dates.push(new Date(current));
     switch (frequency) {
       case 'daily':     current.setDate(current.getDate() + 1);         break;
       case 'weekly':    current.setDate(current.getDate() + 7);         break;
       case 'biweekly':  current.setDate(current.getDate() + 14);        break;
-      case 'monthly':   current.setMonth(current.getMonth() + 1);       break;
-      case 'quarterly': current.setMonth(current.getMonth() + 3);       break;
-      case 'yearly':    current.setFullYear(current.getFullYear() + 1); break;
+      case 'monthly': {
+        const next = addMonthsClamped(current, 1, anchorDay);
+        current.setTime(next.getTime());
+        break;
+      }
+      case 'quarterly': {
+        const next = addMonthsClamped(current, 3, anchorDay);
+        current.setTime(next.getTime());
+        break;
+      }
+      case 'yearly': {
+        const next = addMonthsClamped(current, 12, anchorDay);
+        current.setTime(next.getTime());
+        break;
+      }
     }
   }
   return dates;
@@ -55,23 +80,29 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
     processingInFlight.add(item.id);
 
     try {
+      const itemStart = new Date(item.startDate + 'T00:00:00');
+      if (Number.isNaN(itemStart.getTime())) continue;
+      itemStart.setHours(0, 0, 0, 0);
+
       const startFrom = new Date(
-        Math.max(new Date(item.startDate + 'T00:00:00').getTime(), threeMonthsAgo.getTime())
+        Math.max(itemStart.getTime(), threeMonthsAgo.getTime())
       );
       startFrom.setHours(0, 0, 0, 0);
 
-      if (startFrom >= today) continue;
+      if (startFrom > today) continue;
 
       const endAt = item.endDate
         ? new Date(Math.min(new Date(item.endDate + 'T00:00:00').getTime(), today.getTime()))
         : new Date(today);
       endAt.setHours(0, 0, 0, 0);
 
-      const occurrences = getOccurrences(item.frequency, startFrom, endAt);
+      if (endAt < startFrom) continue;
+
+      const occurrences = getOccurrences(item.frequency, startFrom, endAt, itemStart.getDate());
       if (occurrences.length === 0) continue;
 
       for (const date of occurrences) {
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = localDateKey(date);
         const txId = `rec_${item.id}_${dateStr}`;
         const existing = await getDoc(doc(db, `users/${uid}/transactions/${txId}`));
         if (existing.exists()) continue;
@@ -81,7 +112,8 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
           amount: item.amount,
           category: item.category,
           description: item.description ? `${item.name} — ${item.description}` : item.name,
-          date: date.toISOString(),
+          // Store local-midnight date, consistent with manual/add flows.
+          date: new Date(dateStr + 'T00:00:00').toISOString(),
           recurringId: item.id,
           ...(item.goalId ? { goalId: item.goalId } : {}),
           ...(item.potId  ? { potId:  item.potId  } : {}),
