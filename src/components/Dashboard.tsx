@@ -322,6 +322,18 @@ export function Dashboard() {
   const SPANS: TimeSpan[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
   const xAxisInterval = chartSpan === '1M' ? 4 : chartSpan === '3M' ? 1 : undefined;
   const monthProgressPct = Math.round(projections.monthProgress * 100);
+  const chartAxisColor = '#7f8da2';
+  const chartGridColor = '#223247';
+  const chartRefColor = '#2b3d55';
+  const chartTooltipStyle = {
+    background: '#111a24',
+    border: '1px solid #223247',
+    borderRadius: 12,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+    fontSize: 12,
+    padding: '8px 12px',
+    color: '#e2e8f0',
+  } as const;
   const spendingTrendText =
     projections.spendingTrend === 0
       ? 'Flat vs last month'
@@ -540,16 +552,16 @@ export function Dashboard() {
                   <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval={xAxisInterval} />
-              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: chartAxisColor }} axisLine={false} tickLine={false} interval={xAxisInterval} />
+              <YAxis tick={{ fontSize: 9, fill: chartAxisColor }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
               <Tooltip
-                contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                contentStyle={chartTooltipStyle}
                 formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
-                labelStyle={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}
-                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+                labelStyle={{ fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}
+                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
               />
-              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
+              <ReferenceLine y={0} stroke={chartRefColor} strokeWidth={1} />
               <Area type="monotone" dataKey="income" stroke="#10b981" fill="url(#incomeGrad)" strokeWidth={2} dot={false} name="income" />
               <Area type="monotone" dataKey="expense" stroke="#ef4444" fill="url(#expenseGrad)" strokeWidth={2} dot={false} name="expense" />
               <Line type="monotone" dataKey="net" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" name="net" />
@@ -585,7 +597,7 @@ export function Dashboard() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                    contentStyle={chartTooltipStyle}
                     formatter={(value, name) => {
                       const val = typeof value === 'number' ? value : 0;
                       const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
@@ -625,15 +637,15 @@ export function Dashboard() {
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData} barGap={2} barCategoryGap="32%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval={xAxisInterval} />
-              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: chartAxisColor }} axisLine={false} tickLine={false} interval={xAxisInterval} />
+              <YAxis tick={{ fontSize: 9, fill: chartAxisColor }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
               <Tooltip
-                contentStyle={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12, padding: '8px 12px' }}
+                contentStyle={chartTooltipStyle}
                 formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
-                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
               />
-              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
+              <ReferenceLine y={0} stroke={chartRefColor} strokeWidth={1} />
               <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} name="income" maxBarSize={36} />
               <Bar dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} name="expense" maxBarSize={36} />
             </BarChart>

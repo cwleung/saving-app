@@ -26,8 +26,8 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-teal-800 to-cyan-900 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0b1118] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />
       </div>
     );
   }
@@ -44,7 +44,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="dark-app min-h-screen bg-gray-50">
       <Header onLogout={logout} activeTab={activeTab} onTabChange={setActiveTab} />
       <main>
         {activeTab === 'Dashboard' && <Dashboard />}
