@@ -665,20 +665,20 @@ interface SummaryCardProps {
 
 function SummaryCard({ title, value, icon, color }: SummaryCardProps) {
   const accent: Record<string, string> = {
-    emerald: 'bg-emerald-100 text-emerald-600',
-    red:     'bg-red-100 text-red-500',
-    blue:    'bg-blue-100 text-blue-600',
-    orange:  'bg-orange-100 text-orange-500',
-    purple:  'bg-purple-100 text-purple-600',
+    emerald: 'bg-emerald-500/18 text-emerald-300',
+    red:     'bg-red-500/18 text-red-300',
+    blue:    'bg-blue-500/18 text-blue-300',
+    orange:  'bg-orange-500/18 text-orange-300',
+    purple:  'bg-purple-500/18 text-purple-300',
   };
   return (
-    <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm flex items-center gap-2.5">
+    <div className="bg-slate-900/70 rounded-2xl p-3.5 border border-slate-700/80 shadow-sm flex items-center gap-2.5">
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${accent[color] ?? accent.blue}`}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">{title}</p>
-        <p className="text-lg sm:text-xl font-bold text-gray-800 mt-1 truncate">{value}</p>
+        <p className="text-[11px] text-slate-300 font-semibold uppercase tracking-wide">{title}</p>
+        <p className="text-lg sm:text-xl font-bold text-slate-100 mt-1 truncate">{value}</p>
       </div>
     </div>
   );
@@ -693,18 +693,18 @@ interface InsightPillProps {
 
 function InsightPill({ label, value, sub, tone = 'blue' }: InsightPillProps) {
   const tones: Record<NonNullable<InsightPillProps['tone']>, string> = {
-    emerald: 'text-emerald-700',
-    red: 'text-red-600',
-    orange: 'text-orange-600',
-    amber: 'text-amber-700',
-    blue: 'text-blue-700',
+    emerald: 'text-emerald-300',
+    red: 'text-red-300',
+    orange: 'text-orange-300',
+    amber: 'text-amber-300',
+    blue: 'text-blue-300',
   };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl px-3 py-2.5">
-      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">{label}</p>
+    <div className="bg-slate-900/60 border border-slate-700/80 rounded-xl px-3 py-2.5">
+      <p className="text-[11px] text-slate-300 font-semibold uppercase tracking-wide">{label}</p>
       <p className={`text-sm font-bold mt-0.5 truncate ${tones[tone]}`}>{value}</p>
-      <p className="text-[11px] text-gray-400 mt-0.5 truncate">{sub}</p>
+      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{sub}</p>
     </div>
   );
 }
@@ -718,18 +718,18 @@ interface ProjectionCardProps {
 
 function ProjectionCard({ label, value, sub, color }: ProjectionCardProps) {
   const colors: Record<string, string> = {
-    emerald: 'text-emerald-700',
-    red: 'text-red-500',
-    blue: 'text-blue-700',
-    orange: 'text-orange-500',
-    amber: 'text-amber-600',
-    purple: 'text-purple-700',
+    emerald: 'text-emerald-300',
+    red: 'text-red-300',
+    blue: 'text-blue-300',
+    orange: 'text-orange-300',
+    amber: 'text-amber-300',
+    purple: 'text-purple-300',
   };
   return (
-    <div className="bg-gradient-to-b from-white to-gray-50 border border-gray-100 rounded-xl p-3">
-      <p className="text-[11px] text-gray-400 font-semibold tracking-wide uppercase mb-1">{label}</p>
+    <div className="bg-slate-900/65 border border-slate-700/80 rounded-xl p-3">
+      <p className="text-[11px] text-slate-300 font-semibold tracking-wide uppercase mb-1">{label}</p>
       <p className={`font-bold text-[15px] ${colors[color] ?? colors.blue}`}>{value}</p>
-      <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>
+      <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
     </div>
   );
 }
