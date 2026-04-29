@@ -63,10 +63,10 @@ export function Dashboard() {
     [transactions]
   );
 
-  // 1. totalExpenses — Clean exclusion of goal/pot deposits
+  // 1. totalExpenses — Now includes goal/pot deposits
   const totalExpenses = useMemo(
     () => transactions
-      .filter((t) => t.type === 'expense' && !t.goalId && !t.potId)
+      .filter((t) => t.type === 'expense')
       .reduce((s, t) => s + t.amount, 0),
     [transactions]
   );
@@ -132,8 +132,8 @@ export function Dashboard() {
       
       if (k in buckets) {
         if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
-        // Ensure chart excludes goal/pot transfers
-        else if (t.type === 'expense' && !t.goalId && !t.potId) buckets[k].expense += t.amount;
+        // Chart now includes goal/pot transfers in expenses
+        else if (t.type === 'expense') buckets[k].expense += t.amount;
       }
     });
 
@@ -165,7 +165,8 @@ export function Dashboard() {
 
     const cats: Record<string, number> = {};
     transactions
-      .filter((t) => t.type === 'expense' && !t.goalId && !t.potId && new Date(t.date) >= cutoff)
+      // Now includes pots and goals as their respective categories (e.g., 'Savings' or 'Transfer')
+      .filter((t) => t.type === 'expense' && new Date(t.date) >= cutoff)
       .forEach((t) => {
         cats[t.category] = (cats[t.category] || 0) + t.amount;
       });
@@ -194,10 +195,10 @@ export function Dashboard() {
     let totalHistoryIncome = 0;
     let totalHistoryExpense = 0;
     let totalHistoryGoalDeposits = 0;
+    let totalHistoryManualSpend = 0;
     const txMonths = new Set<string>();
 
     // Step 1: Analyze historical averages (Last 3 months)
-    // We exclude recurringId because recurring items are handled by 'upcomingItems' logic
     transactions.forEach((t) => {
       const k = monthKey(new Date(t.date));
       txMonths.add(k);
@@ -206,11 +207,16 @@ export function Dashboard() {
         if (t.type === 'income' || t.type === 'refund') {
           totalHistoryIncome += t.amount;
         } else if (t.type === 'expense') {
+          // Total expense now tracks everything including savings
+          totalHistoryExpense += t.amount;
+          
           if (t.goalId || t.potId) {
             totalHistoryGoalDeposits += t.amount;
-          } else if (!t.recurringId) {
-            // We only average "manual" expenses for the daily run-rate
-            totalHistoryExpense += t.amount;
+          }
+          
+          if (!t.recurringId && !t.goalId && !t.potId) {
+            // Strictly variable spending used to estimate the daily run-rate
+            totalHistoryManualSpend += t.amount;
           }
         }
       }
@@ -222,7 +228,8 @@ export function Dashboard() {
     const avgMonthlyGoalDeposits = totalHistoryGoalDeposits / activeMonths;
     
     // Pro-rated estimation for remaining manual spending this month
-    const avgDailyManualSpend = avgMonthlyExpense / daysInMonth;
+    const avgMonthlyManualSpend = totalHistoryManualSpend / activeMonths;
+    const avgDailyManualSpend = avgMonthlyManualSpend / daysInMonth;
     const estimatedRemainingManualSpend = avgDailyManualSpend * daysRemaining;
 
     // Step 2: Current Month "Actuals" (Transactions already recorded)
@@ -231,7 +238,8 @@ export function Dashboard() {
       .reduce((s, t) => s + t.amount, 0);
 
     const thisMonthActualExpense = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense' && !t.goalId && !t.potId)
+      // Includes goal and pot deposits!
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense')
       .reduce((s, t) => s + t.amount, 0);
 
     // Step 3: "Upcoming" items for THIS calendar month only
@@ -259,16 +267,17 @@ export function Dashboard() {
     const projNet = projIncome - projExpense;
 
     // Additional Insight Math
-    const avgMonthlySavings = avgMonthlyIncome - avgMonthlyExpense;
+    // Subtracting goal deposits from expenses strictly to calculate 'saving capacity' rates
+    const avgMonthlySavings = avgMonthlyIncome - (avgMonthlyExpense - avgMonthlyGoalDeposits);
     const annualSavings = avgMonthlySavings * 12;
     const savingsRate = avgMonthlyIncome > 0 ? (avgMonthlySavings / avgMonthlyIncome) * 100 : 0;
 
-    // Spending trend (Excluding goals/pots)
+    // Spending trend (Now includes goals/pots to give complete outflow picture)
     const lastMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      if (t.type !== 'expense' || t.recurringId || t.goalId || t.potId) return;
+      if (t.type !== 'expense' || t.recurringId) return;
       const k = monthKey(new Date(t.date));
       if (k === lastMonthK) lastExp += t.amount;
       if (k === prevMonthK) prevExp += t.amount;
@@ -401,7 +410,7 @@ export function Dashboard() {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Monthly Averages — Last 3 Months</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="manual transactions" color="emerald" />
-            <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="excl. goal deposits" color="red" />
+            <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="includes savings" color="red" />
             <ProjectionCard label="Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
             <ProjectionCard
               label="Savings Rate"
@@ -443,7 +452,7 @@ export function Dashboard() {
               projections.spendingTrend > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
             }`}>
               {projections.spendingTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month (excl. goals)
+              Spending {projections.spendingTrend > 0 ? 'up' : 'down'} {Math.abs(projections.spendingTrend).toFixed(1)}% vs last month (incl. savings)
             </div>
           )}
         </div>
