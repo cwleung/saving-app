@@ -162,6 +162,14 @@ export function SavingsGoals() {
     setActionAmount('');
   }
 
+  function handleDeleteGoal(goal: SavingsGoal) {
+    const confirmed = window.confirm(
+      `Delete goal "${goal.name}"?\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+    deleteGoal(goal.id);
+  }
+
   // Pot balance is the source of truth for goal progress — never stored on the goal
   const totalSaved     = goals.reduce((s, g) => s + potBalance(g.potId ?? ''), 0);
   const totalTarget    = goals.reduce((s, g) => s + g.targetAmount, 0);
@@ -413,7 +421,7 @@ export function SavingsGoals() {
                     <button onClick={() => openEdit(goal)} className="text-gray-300 hover:text-blue-400 cursor-pointer">
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button onClick={() => deleteGoal(goal.id)} className="text-gray-300 hover:text-red-400 cursor-pointer">
+                    <button onClick={() => handleDeleteGoal(goal)} className="text-gray-300 hover:text-red-400 cursor-pointer">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

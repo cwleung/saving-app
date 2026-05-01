@@ -126,6 +126,14 @@ export function PotsPage() {
     setActionAmount('');
   }
 
+  function handleDeletePot(pot: Pot) {
+    const confirmed = window.confirm(
+      `Delete pot "${pot.name}"?\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+    deletePot(pot.id);
+  }
+
   return (
     <PageContainer>
       <PageHeader
@@ -271,7 +279,7 @@ export function PotsPage() {
                       <button onClick={() => openEdit(pot)} className="text-gray-300 hover:text-blue-400 cursor-pointer transition-colors">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deletePot(pot.id)} className="text-gray-300 hover:text-red-400 cursor-pointer transition-colors">
+                      <button onClick={() => handleDeletePot(pot)} className="text-gray-300 hover:text-red-400 cursor-pointer transition-colors">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
