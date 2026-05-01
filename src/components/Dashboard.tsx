@@ -19,6 +19,7 @@ import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Cl
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
+import { countOccurrencesInRange } from '../lib/recurrence';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -162,15 +163,13 @@ export function Dashboard() {
     const cutoff = new Date(now.getTime() - spanToDays[pieSpan] * 86_400_000);
 
     const cats: Record<string, number> = {};
-    transactions
-      .filter(
+    transactions.filter(
         (t) =>
           t.type === 'expense' &&
           new Date(t.date) >= cutoff &&
           !t.goalId &&
           !t.potId
-      )
-      .forEach((t) => {
+      ).forEach((t) => {
         const catName = t.category || 'Uncategorized';
         cats[catName] = (cats[catName] || 0) + t.amount;
       });
@@ -242,6 +241,18 @@ export function Dashboard() {
       .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense')
       .reduce((s, t) => s + t.amount, 0);
 
+    const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    let recurringIncomeRemainingThisMonth = 0;
+    let recurringExpenseRemainingThisMonth = 0;
+
+    regularSpendings.forEach((r) => {
+      const occurrencesLeft = countOccurrencesInRange(r, tomorrowStart, endOfMonth);
+      if (occurrencesLeft <= 0) return;
+      const amountLeft = occurrencesLeft * r.amount;
+      if (r.transactionType === 'expense') recurringExpenseRemainingThisMonth += amountLeft;
+      else recurringIncomeRemainingThisMonth += amountLeft;
+    });
+
     let upcomingExpenseThisMonth = 0;
     let upcomingIncomeThisMonth = 0;
     
@@ -259,8 +270,8 @@ export function Dashboard() {
         else upcomingIncomeThisMonth += u.amount;
       });
 
-    const projIncome = thisMonthActualIncome + upcomingIncomeThisMonth;
-    const projExpense = thisMonthActualExpense + upcomingExpenseThisMonth + estimatedRemainingManualSpend;
+    const projIncome = thisMonthActualIncome + upcomingIncomeThisMonth + recurringIncomeRemainingThisMonth;
+    const projExpense = thisMonthActualExpense + upcomingExpenseThisMonth + estimatedRemainingManualSpend + recurringExpenseRemainingThisMonth;
     const projNet = projIncome - projExpense;
 
     const avgMonthlySavings = avgMonthlyIncome - (avgMonthlyExpense - avgMonthlyGoalDeposits);

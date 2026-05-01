@@ -8,6 +8,8 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getOccurrences, localDateKey, parseLocalDate } from '../lib/recurrence';
+import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Pot } from '../types';
 
 // Firestore rejects undefined field values — strip them before writing
 function clean<T extends object>(obj: T): T {
@@ -15,53 +17,8 @@ function clean<T extends object>(obj: T): T {
     Object.entries(obj).filter(([, v]) => v !== undefined)
   ) as T;
 }
-import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Frequency, Pot } from '../types';
 
 // ─── Recurring-transaction auto-generation ───────────────────────────────────
-function localDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function addMonthsClamped(d: Date, months: number, anchorDay: number): Date {
-  const next = new Date(d);
-  next.setDate(1);
-  next.setMonth(next.getMonth() + months);
-  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-  next.setDate(Math.min(anchorDay, lastDay));
-  return next;
-}
-
-function getOccurrences(frequency: Frequency, from: Date, to: Date, anchorDay: number): Date[] {
-  const dates: Date[] = [];
-  const current = new Date(from);
-  current.setHours(0, 0, 0, 0);
-  const end = new Date(to);
-  end.setHours(0, 0, 0, 0);
-  while (current <= end && dates.length < 100) {
-    dates.push(new Date(current));
-    switch (frequency) {
-      case 'daily':     current.setDate(current.getDate() + 1);         break;
-      case 'weekly':    current.setDate(current.getDate() + 7);         break;
-      case 'biweekly':  current.setDate(current.getDate() + 14);        break;
-      case 'monthly': {
-        const next = addMonthsClamped(current, 1, anchorDay);
-        current.setTime(next.getTime());
-        break;
-      }
-      case 'quarterly': {
-        const next = addMonthsClamped(current, 3, anchorDay);
-        current.setTime(next.getTime());
-        break;
-      }
-      case 'yearly': {
-        const next = addMonthsClamped(current, 12, anchorDay);
-        current.setTime(next.getTime());
-        break;
-      }
-    }
-  }
-  return dates;
-}
 
 /** IDs already processed in this browser session — prevents duplicate writes on re-snapshots */
 const processedRecurringSession = new Set<string>();
@@ -80,9 +37,8 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
     processingInFlight.add(item.id);
 
     try {
-      const itemStart = new Date(item.startDate + 'T00:00:00');
-      if (Number.isNaN(itemStart.getTime())) continue;
-      itemStart.setHours(0, 0, 0, 0);
+      const itemStart = parseLocalDate(item.startDate);
+      if (!itemStart) continue;
 
       const startFrom = new Date(
         Math.max(itemStart.getTime(), threeMonthsAgo.getTime())
@@ -91,8 +47,9 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
 
       if (startFrom > today) continue;
 
-      const endAt = item.endDate
-        ? new Date(Math.min(new Date(item.endDate + 'T00:00:00').getTime(), today.getTime()))
+      const itemEnd = parseLocalDate(item.endDate);
+      const endAt = itemEnd
+        ? new Date(Math.min(itemEnd.getTime(), today.getTime()))
         : new Date(today);
       endAt.setHours(0, 0, 0, 0);
 
