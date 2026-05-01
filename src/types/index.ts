@@ -11,6 +11,8 @@ export interface Transaction {
   /** true when this transaction withdraws money back out of a goal (reduces goal balance) */
   goalWithdrawal?: boolean;
   potId?: string;
+  /** Optional explicit pot flow direction to avoid inferring from transaction type */
+  potDirection?: 'in' | 'out';
   recurringId?: string;
   upcomingId?: string;
 }

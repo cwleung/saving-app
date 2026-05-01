@@ -28,7 +28,7 @@ interface AddTransactionProps {
 }
 
 export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
-  const { addTransaction, updateTransaction, goals, pots } = useAppStore();
+  const { addTransaction, updateTransaction, pots } = useAppStore();
   const { currency } = useCurrency();
   const isEdit = !!initialData;
 
@@ -45,15 +45,19 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   });
-  const [goalId, setGoalId] = useState(initialData?.goalId ?? '');
+  const goalId = initialData?.goalId ?? '';
   const [potId, setPotId] = useState(initialData?.potId ?? '');
 
   const categories = CATEGORIES_BY_TRANSACTION_TYPE[type];
-  const showGoalSelector = (type === 'income' || type === 'expense' || type === 'refund') && goals.length > 0;
   const showPotSelector = (type === 'income' || type === 'expense') && pots.length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const explicitPotDirection =
+      potId && (!isEdit || initialData?.potDirection !== undefined)
+        ? (type === 'income' ? 'in' : type === 'expense' ? 'out' : undefined)
+        : undefined;
+
     const tx: Transaction = {
       id: initialData?.id ?? crypto.randomUUID(),
       type,
@@ -64,6 +68,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
       date: new Date(date + 'T00:00:00').toISOString(),
       goalId: goalId || undefined,
       potId: potId || undefined,
+      potDirection: explicitPotDirection,
     };
     if (isEdit) {
       updateTransaction(tx);
@@ -101,7 +106,6 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
                 onClick={() => {
                   setType(t);
                   setCategory('');
-                  setGoalId('');
                   setPotId('');
                 }}
                 className={`py-2 text-xs font-medium transition-colors cursor-pointer ${
@@ -164,25 +168,6 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
             />
           </div>
 
-          {showGoalSelector && (
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                {type === 'expense' ? 'Deposit into goal' : 'Contribute to goal'}{' '}
-                <span className="text-gray-400">(optional)</span>
-              </label>
-              <select
-                value={goalId}
-                onChange={(e) => { setGoalId(e.target.value); if (e.target.value) setPotId(''); }}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-              >
-                <option value="">None</option>
-                {goals.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {showPotSelector && (
             <div>
               <label className="block text-sm text-gray-600 mb-1">
@@ -191,7 +176,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
               </label>
               <select
                 value={potId}
-                onChange={(e) => { setPotId(e.target.value); if (e.target.value) setGoalId(''); }}
+                onChange={(e) => setPotId(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
               >
                 <option value="">None</option>
