@@ -19,7 +19,7 @@ import { TrendingUp, TrendingDown, DollarSign, Target, BarChart2, RepeatIcon, Cl
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
-import { countOccurrencesInRange } from '../lib/recurrence';
+import { countOccurrencesInRange, parseLocalDate } from '../lib/recurrence';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -187,6 +187,8 @@ export function Dashboard() {
       t.type === 'income' && (!!t.potId || !!t.goalWithdrawal);
 
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const endOfMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const daysInMonth = endOfMonth.getDate();
     const dayOfMonth = now.getDate();
     const daysRemaining = Math.max(0, daysInMonth - dayOfMonth);
@@ -258,11 +260,12 @@ export function Dashboard() {
     
     upcomingItems
       .filter((u) => {
-        const dueDate = new Date(u.dueDate);
+        const dueDate = parseLocalDate(u.dueDate);
+        if (!dueDate) return false;
         return (
           !u.isPaid && 
-          dueDate <= endOfMonth && 
-          dueDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+          dueDate <= endOfMonthEnd &&
+          dueDate >= startOfToday
         );
       })
       .forEach((u) => {
