@@ -7,6 +7,10 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { Pot, Frequency } from '../types';
 import { calcPotBalance } from '../lib/potBalance';
+import { PageContainer } from './ui/PageContainer';
+import { PageHeader } from './ui/PageHeader';
+import { ActionButton } from './ui/ActionButton';
+import { StatCard } from './ui/StatCard';
 
 const POT_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6'];
 
@@ -123,40 +127,38 @@ export function PotsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-28">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Pots</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Ring-fence money for any purpose</p>
-        </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white text-sm font-semibold px-4 py-2 rounded-full transition-all cursor-pointer shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> New Pot
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Pots"
+        subtitle="Ring-fence money for any purpose"
+        action={
+          <ActionButton
+            tone="indigo"
+            onClick={() => setShowAdd(!showAdd)}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            New Pot
+          </ActionButton>
+        }
+      />
 
       {/* Stats */}
       {pots.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <div className="flex items-center gap-1.5 mb-1">
-              <PiggyBank className="w-3.5 h-3.5 text-indigo-500" />
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Total in Pots</p>
-            </div>
-            <p className="text-xl font-bold text-gray-900">{fmt(totalBalance)}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{pots.length} pot{pots.length !== 1 ? 's' : ''}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <div className="flex items-center gap-1.5 mb-1">
-              <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Monthly In</p>
-            </div>
-            <p className="text-xl font-bold text-gray-900">{totalMonthlyIn > 0 ? fmt(totalMonthlyIn) : '—'}</p>
-            <p className="text-xs text-gray-400 mt-0.5">from recurring</p>
-          </div>
+          <StatCard
+            label="Total in Pots"
+            value={fmt(totalBalance)}
+            sub={`${pots.length} pot${pots.length !== 1 ? 's' : ''}`}
+            valueClassName="text-xl font-bold text-gray-900"
+            icon={<PiggyBank className="w-3.5 h-3.5 text-indigo-500" />}
+          />
+          <StatCard
+            label="Monthly In"
+            value={totalMonthlyIn > 0 ? fmt(totalMonthlyIn) : '—'}
+            sub="from recurring"
+            valueClassName="text-xl font-bold text-gray-900"
+            icon={<RefreshCw className="w-3.5 h-3.5 text-emerald-500" />}
+          />
         </div>
       )}
 
@@ -202,12 +204,13 @@ export function PotsPage() {
             <p className="text-xs text-indigo-600 bg-indigo-50 rounded-xl px-4 py-3 leading-relaxed">
               💡 Go to <strong>Regular</strong> → add an income item → link it to this pot for automatic monthly deposits.
             </p>
-            <button
+            <ActionButton
               type="submit"
-              className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer shadow-sm"
+              tone="indigo"
+              size="full"
             >
               Create Pot
-            </button>
+            </ActionButton>
           </form>
         </div>
       )}
@@ -223,12 +226,14 @@ export function PotsPage() {
             Create a pot for travel, emergencies, or anything — then set up a recurring deposit
             to build it up automatically each month.
           </p>
-          <button
+          <ActionButton
             onClick={() => setShowAdd(true)}
-            className="mt-5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full cursor-pointer transition-colors"
+            tone="indigo"
+            size="md"
+            className="mt-5"
           >
             Create your first pot
-          </button>
+          </ActionButton>
         </div>
       ) : (
         <div className="space-y-4">
@@ -454,6 +459,6 @@ export function PotsPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -4,6 +4,11 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
 import type { RegularSpending, Frequency } from '../types';
+import { PageContainer } from './ui/PageContainer';
+import { PageHeader } from './ui/PageHeader';
+import { ActionButton } from './ui/ActionButton';
+import { StatCard } from './ui/StatCard';
+import { ClearableDateField } from './ui/ClearableDateField';
 
 const FREQUENCIES: { value: Frequency; label: string; shortLabel: string }[] = [
   { value: 'daily',     label: 'Daily',     shortLabel: '/day'  },
@@ -48,45 +53,6 @@ const EMPTY_FORM: FormData = {
   goalId: '',
   potId: '',
 };
-
-// Small helper — clearable date input with explicit ×  button
-function DateField({
-  label,
-  value,
-  onChange,
-  onClear,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  onClear: () => void;
-}) {
-  return (
-    <div>
-      <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-        {label} <span className="normal-case font-normal text-gray-300">(optional)</span>
-      </label>
-      <div className="relative">
-        <input
-          type="date"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors pr-8"
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-            aria-label="Clear date"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export function RegularSpendingPage() {
   const { regularSpendings, pots, addRegularSpending, updateRegularSpending, deleteRegularSpending, addTransaction } = useAppStore();
@@ -152,32 +118,22 @@ export function RegularSpendingPage() {
   const netMonthly = totalMonthlyIncome - totalMonthlyExpense;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-28">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Regular</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Recurring income &amp; expenses</p>
-        </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold px-4 py-2 rounded-full transition-all cursor-pointer shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Add
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Regular"
+        subtitle="Recurring income & expenses"
+        action={
+          <ActionButton onClick={openAdd} icon={<Plus className="w-4 h-4" />}>
+            Add
+          </ActionButton>
+        }
+      />
 
       {/* Summary row */}
       {regularSpendings.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Income/mo</p>
-            <p className="text-lg font-bold text-emerald-600 mt-1 truncate">{fmt(totalMonthlyIncome)}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Expense/mo</p>
-            <p className="text-lg font-bold text-red-500 mt-1 truncate">{fmt(totalMonthlyExpense)}</p>
-          </div>
+          <StatCard label="Income/mo" value={fmt(totalMonthlyIncome)} valueClassName="text-lg font-bold text-emerald-600" />
+          <StatCard label="Expense/mo" value={fmt(totalMonthlyExpense)} valueClassName="text-lg font-bold text-red-500" />
           <div className={`rounded-2xl p-4 border shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${netMonthly >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Net/mo</p>
             <p className={`text-lg font-bold mt-1 truncate ${netMonthly >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmt(netMonthly)}</p>
@@ -192,12 +148,13 @@ export function RegularSpendingPage() {
           </div>
           <p className="font-semibold text-gray-700">No recurring items</p>
           <p className="text-sm text-gray-400 mt-1 max-w-xs">Add rent, subscriptions, salary — anything that repeats.</p>
-          <button
+          <ActionButton
             onClick={openAdd}
-            className="mt-5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full cursor-pointer transition-colors"
+            size="md"
+            className="mt-5"
           >
             Add your first item
-          </button>
+          </ActionButton>
         </div>
       ) : (
         <div className="space-y-5">
@@ -383,17 +340,21 @@ export function RegularSpendingPage() {
 
               {/* Dates — both truly optional with clear button */}
               <div className="grid grid-cols-2 gap-3">
-                <DateField
+                <ClearableDateField
                   label="Start Date"
+                  optional
                   value={form.startDate}
                   onChange={(v) => setForm((f) => ({ ...f, startDate: v }))}
                   onClear={() => setForm((f) => ({ ...f, startDate: '' }))}
+                  inputClassName="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors pr-8"
                 />
-                <DateField
+                <ClearableDateField
                   label="End Date"
+                  optional
                   value={form.endDate}
                   onChange={(v) => setForm((f) => ({ ...f, endDate: v }))}
                   onClear={() => setForm((f) => ({ ...f, endDate: '' }))}
+                  inputClassName="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors pr-8"
                 />
               </div>
 
@@ -436,16 +397,17 @@ export function RegularSpendingPage() {
                 </div>
               )}
 
-              <button
+              <ActionButton
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer mt-2 shadow-sm"
+                size="full"
+                className="mt-2"
               >
                 {editItem ? 'Save Changes' : 'Add Recurring Item'}
-              </button>
+              </ActionButton>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

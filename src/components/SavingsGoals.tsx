@@ -4,6 +4,10 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { SavingsGoal } from '../types';
 import { calcPotBalance } from '../lib/potBalance';
+import { PageContainer } from './ui/PageContainer';
+import { PageHeader } from './ui/PageHeader';
+import { ActionButton } from './ui/ActionButton';
+import { StatCard } from './ui/StatCard';
 
 const GOAL_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 const POT_COLORS  = ['#6366f1', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6'];
@@ -182,63 +186,47 @@ export function SavingsGoals() {
     }, 0);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-28">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Goals</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Track your savings milestones</p>
-        </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold px-4 py-2 rounded-full transition-all cursor-pointer shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> New Goal
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Goals"
+        subtitle="Track your savings milestones"
+        action={
+          <ActionButton onClick={() => setShowAdd(!showAdd)} icon={<Plus className="w-4 h-4" />}>
+            New Goal
+          </ActionButton>
+        }
+      />
 
       {/* Statistics — only shown when there are goals */}
       {goals.length > 0 && (
         <>
           {/* 3-stat grid (Completed removed per request) */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Total Saved</p>
-              </div>
-              <p className="text-xl font-bold text-gray-900 truncate">{fmt(totalSaved)}</p>
-              <p className="text-xs text-gray-400 mt-0.5">of {fmt(totalTarget)}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Target className="w-3.5 h-3.5 text-blue-500" />
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Still Needed</p>
-              </div>
-              <p className="text-xl font-bold text-gray-900 truncate">{fmt(totalRemaining)}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{remaining} active</p>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                  {monthlyNeeded > 0 ? 'Mo. Needed' : 'No Deadlines'}
-                </p>
-              </div>
-              {monthlyNeeded > 0 ? (
-                <>
-                  <p className="text-xl font-bold text-gray-900 truncate">{fmt(monthlyNeeded)}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {soonestGoal ? `${soonestGoal.name} in ${daysUntil(soonestGoal.deadline!)}d` : 'to meet deadlines'}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-xl font-bold text-gray-400">—</p>
-                  <p className="text-xs text-gray-400 mt-0.5">set a deadline to track</p>
-                </>
-              )}
-            </div>
+            <StatCard
+              label="Total Saved"
+              value={fmt(totalSaved)}
+              sub={`of ${fmt(totalTarget)}`}
+              valueClassName="text-xl font-bold text-gray-900"
+              icon={<TrendingUp className="w-3.5 h-3.5 text-emerald-500" />}
+            />
+            <StatCard
+              label="Still Needed"
+              value={fmt(totalRemaining)}
+              sub={`${remaining} active`}
+              valueClassName="text-xl font-bold text-gray-900"
+              icon={<Target className="w-3.5 h-3.5 text-blue-500" />}
+            />
+            <StatCard
+              label={monthlyNeeded > 0 ? 'Mo. Needed' : 'No Deadlines'}
+              value={monthlyNeeded > 0 ? fmt(monthlyNeeded) : '—'}
+              sub={monthlyNeeded > 0
+                ? soonestGoal
+                  ? `${soonestGoal.name} in ${daysUntil(soonestGoal.deadline!)}d`
+                  : 'to meet deadlines'
+                : 'set a deadline to track'}
+              valueClassName={monthlyNeeded > 0 ? 'text-xl font-bold text-gray-900' : 'text-xl font-bold text-gray-400'}
+              icon={<Calendar className="w-3.5 h-3.5 text-amber-500" />}
+            />
           </div>
 
           {/* Overall progress bar */}
@@ -335,12 +323,12 @@ export function SavingsGoals() {
               )}
             </div>
 
-            <button
+            <ActionButton
               type="submit"
-              className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer shadow-sm"
+              size="full"
             >
               Save Goal
-            </button>
+            </ActionButton>
           </form>
         </div>
       )}
@@ -352,12 +340,13 @@ export function SavingsGoals() {
           </div>
           <p className="font-semibold text-gray-700">No goals yet</p>
           <p className="text-sm text-gray-400 mt-1 max-w-xs">Set a target and track your progress toward it.</p>
-          <button
+          <ActionButton
             onClick={() => setShowAdd(true)}
-            className="mt-5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full cursor-pointer transition-colors"
+            size="md"
+            className="mt-5"
           >
             Create your first goal
-          </button>
+          </ActionButton>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
@@ -714,16 +703,16 @@ export function SavingsGoals() {
                 )}
               </div>
 
-              <button
+              <ActionButton
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer shadow-sm"
+                size="full"
               >
                 Save Changes
-              </button>
+              </ActionButton>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

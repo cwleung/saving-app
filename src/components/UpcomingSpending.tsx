@@ -4,6 +4,11 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
 import type { UpcomingItem } from '../types';
+import { PageContainer } from './ui/PageContainer';
+import { PageHeader } from './ui/PageHeader';
+import { ActionButton } from './ui/ActionButton';
+import { StatCard } from './ui/StatCard';
+import { ClearableDateField } from './ui/ClearableDateField';
 
 
 function daysFromNow(dateStr: string): number {
@@ -44,38 +49,6 @@ const EMPTY_FORM: FormData = {
   transactionType: 'expense',
   description: '',
 };
-
-// Clearable date input
-function DateField({
-  value,
-  onChange,
-  onClear,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onClear: () => void;
-}) {
-  return (
-    <div className="relative">
-      <input
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-gray-50 rounded-xl px-3 py-3 text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors pr-8"
-      />
-      {value && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-          aria-label="Clear date"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      )}
-    </div>
-  );
-}
 
 export function UpcomingSpendingPage() {
   const { upcomingItems, addUpcomingItem, updateUpcomingItem, deleteUpcomingItem, addTransaction } = useAppStore();
@@ -137,32 +110,22 @@ export function UpcomingSpendingPage() {
   });
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-28">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Upcoming</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Scheduled payments &amp; income</p>
-        </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold px-4 py-2 rounded-full transition-all cursor-pointer shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Add
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Upcoming"
+        subtitle="Scheduled payments & income"
+        action={
+          <ActionButton onClick={openAdd} icon={<Plus className="w-4 h-4" />}>
+            Add
+          </ActionButton>
+        }
+      />
 
       {/* Summary row */}
       {upcomingItems.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Due Out</p>
-            <p className="text-lg font-bold text-red-500 mt-1 truncate">{fmt(totalPending)}</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Coming In</p>
-            <p className="text-lg font-bold text-emerald-600 mt-1 truncate">{fmt(totalIncoming)}</p>
-          </div>
+          <StatCard label="Due Out" value={fmt(totalPending)} valueClassName="text-lg font-bold text-red-500" />
+          <StatCard label="Coming In" value={fmt(totalIncoming)} valueClassName="text-lg font-bold text-emerald-600" />
           <div className={`rounded-2xl p-4 border shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${netUpcoming >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Net</p>
             <p className={`text-lg font-bold mt-1 truncate ${netUpcoming >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmt(netUpcoming)}</p>
@@ -177,12 +140,13 @@ export function UpcomingSpendingPage() {
           </div>
           <p className="font-semibold text-gray-700">Nothing upcoming</p>
           <p className="text-sm text-gray-400 mt-1 max-w-xs">Track bills, rent, paydays — anything on the horizon.</p>
-          <button
+          <ActionButton
             onClick={openAdd}
-            className="mt-5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full cursor-pointer transition-colors"
+            size="md"
+            className="mt-5"
           >
             Add your first item
-          </button>
+          </ActionButton>
         </div>
       ) : (
         <>
@@ -385,10 +349,11 @@ export function UpcomingSpendingPage() {
                   <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
                     Due Date <span className="normal-case font-normal text-gray-300">(optional)</span>
                   </label>
-                  <DateField
+                  <ClearableDateField
                     value={form.dueDate}
                     onChange={(v) => setForm((f) => ({ ...f, dueDate: v }))}
                     onClear={() => setForm((f) => ({ ...f, dueDate: '' }))}
+                    inputClassName="w-full bg-gray-50 rounded-xl px-3 py-3 text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-colors pr-8"
                   />
                 </div>
               </div>
@@ -421,16 +386,17 @@ export function UpcomingSpendingPage() {
                 />
               </div>
 
-              <button
+              <ActionButton
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold rounded-2xl py-3.5 text-[15px] transition-all cursor-pointer mt-2 shadow-sm"
+                size="full"
+                className="mt-2"
               >
                 {editItem ? 'Save Changes' : 'Add Item'}
-              </button>
+              </ActionButton>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
