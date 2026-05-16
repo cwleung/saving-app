@@ -24,8 +24,8 @@ export function getPotFlowDirection(tx: PotFlowTx): PotFlowDirection | null {
   const isDepositLike = /\bdeposit\b/.test(description) || tx.category === 'Pot Deposit';
 
   if (tx.potDirection === 'in' || tx.potDirection === 'out') {
-    // Legacy recurring pot top-ups were sometimes saved as expense+out.
-    if (tx.potDirection === 'out' && tx.type === 'expense' && tx.recurringId && isDepositLike) return 'in';
+    // Legacy data can carry `expense + out` for deposit-like pot top-ups.
+    if (tx.potDirection === 'out' && tx.type === 'expense' && isDepositLike) return 'in';
     return tx.potDirection;
   }
 
@@ -38,8 +38,8 @@ export function getPotFlowDirection(tx: PotFlowTx): PotFlowDirection | null {
 
   if (tx.type === 'expense') {
     if (tx.goalId || POT_IN_EXPENSE_CATEGORIES.has(tx.category)) return 'in';
-    // Legacy support: some recurring pot top-ups were saved as `expense` + potId.
-    if (tx.recurringId && isDepositLike) return 'in';
+    // Legacy support: deposit-like labels should increase pot balance.
+    if (isDepositLike) return 'in';
     return 'out';
   }
 
