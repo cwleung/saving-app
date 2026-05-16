@@ -1,4 +1,4 @@
-import type { Transaction } from '../types';
+import type { RegularSpending, Transaction } from '../types';
 
 type PotFlowDirection = 'in' | 'out';
 
@@ -19,10 +19,15 @@ type PotFlowTx = Pick<
  */
 export function getPotFlowDirection(tx: PotFlowTx): PotFlowDirection | null {
   if (!tx.potId) return null;
-  if (tx.potDirection === 'in' || tx.potDirection === 'out') return tx.potDirection;
 
   const description = tx.description?.toLowerCase() ?? '';
-  const isDepositLike = /\bdeposit\b/.test(description);
+  const isDepositLike = /\bdeposit\b/.test(description) || tx.category === 'Pot Deposit';
+
+  if (tx.potDirection === 'in' || tx.potDirection === 'out') {
+    // Legacy recurring pot top-ups were sometimes saved as expense+out.
+    if (tx.potDirection === 'out' && tx.type === 'expense' && tx.recurringId && isDepositLike) return 'in';
+    return tx.potDirection;
+  }
 
   if (tx.type === 'transfer') return 'in';
 
@@ -46,6 +51,17 @@ export function getPotSignedAmount(tx: PotFlowTx): number {
   if (direction === 'in') return tx.amount;
   if (direction === 'out') return -tx.amount;
   return 0;
+}
+
+type PotRecurringTx = Pick<RegularSpending, 'transactionType' | 'potId' | 'category' | 'name' | 'description'>;
+
+export function getRecurringPotFlowDirection(item: PotRecurringTx): PotFlowDirection | null {
+  if (!item.potId) return null;
+  if (item.transactionType === 'income') return 'in';
+
+  const text = `${item.name} ${item.description ?? ''} ${item.category}`.toLowerCase();
+  const isLegacyDepositLike = /\bdeposit\b/.test(text) || item.category === 'Pot Deposit';
+  return isLegacyDepositLike ? 'in' : 'out';
 }
 
 export function isPotExpenseOutflow(tx: PotFlowTx): boolean {

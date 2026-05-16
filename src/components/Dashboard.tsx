@@ -20,7 +20,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
 import { countOccurrencesInRange, parseLocalDate } from '../lib/recurrence';
-import { getPotFlowDirection, isDashboardExpense, isDashboardIncome } from '../lib/transactionFlow';
+import { getPotFlowDirection, getRecurringPotFlowDirection, isDashboardExpense, isDashboardIncome } from '../lib/transactionFlow';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -240,9 +240,23 @@ export function Dashboard() {
       .filter((t) => monthKey(new Date(t.date)) === thisMonthK && isDashboardIncome(t))
       .reduce((s, t) => s + t.amount, 0);
 
-    const thisMonthActualExpense = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && isDashboardExpense(t))
+    const thisMonthExpenseTxs = transactions
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && isDashboardExpense(t));
+
+    const thisMonthActualExpense = thisMonthExpenseTxs.reduce((s, t) => s + t.amount, 0);
+
+    const thisMonthSavingsExpense = thisMonthExpenseTxs
+      .filter((t) => t.goalId || getPotFlowDirection(t) === 'in')
       .reduce((s, t) => s + t.amount, 0);
+
+    const thisMonthRecurringExpense = thisMonthExpenseTxs
+      .filter((t) => !t.goalId && getPotFlowDirection(t) !== 'in' && Boolean(t.recurringId))
+      .reduce((s, t) => s + t.amount, 0);
+
+    const thisMonthFlexibleExpense = Math.max(
+      0,
+      thisMonthActualExpense - thisMonthSavingsExpense - thisMonthRecurringExpense
+    );
 
     const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     let recurringIncomeRemainingThisMonth = 0;
@@ -252,12 +266,12 @@ export function Dashboard() {
       const occurrencesLeft = countOccurrencesInRange(r, tomorrowStart, endOfMonth);
       if (occurrencesLeft <= 0) return;
       const amountLeft = occurrencesLeft * r.amount;
-      if (r.transactionType === 'income') {
-        if (r.potId) recurringExpenseRemainingThisMonth += amountLeft;
-        else recurringIncomeRemainingThisMonth += amountLeft;
+      if (r.potId) {
+        if (getRecurringPotFlowDirection(r) === 'in') recurringExpenseRemainingThisMonth += amountLeft;
         return;
       }
-      if (!r.potId) recurringExpenseRemainingThisMonth += amountLeft;
+      if (r.transactionType === 'income') recurringIncomeRemainingThisMonth += amountLeft;
+      else recurringExpenseRemainingThisMonth += amountLeft;
     });
 
     let upcomingExpenseThisMonth = 0;
@@ -314,12 +328,12 @@ export function Dashboard() {
     let recurringMonthlyIncome = 0;
     regularSpendings.forEach((r) => {
       const monthly = r.amount * (FREQ_MONTHLY[r.frequency] ?? 1);
-      if (r.transactionType === 'income') {
-        if (r.potId) recurringMonthlyExpense += monthly;
-        else recurringMonthlyIncome += monthly;
+      if (r.potId) {
+        if (getRecurringPotFlowDirection(r) === 'in') recurringMonthlyExpense += monthly;
         return;
       }
-      if (!r.potId) recurringMonthlyExpense += monthly;
+      if (r.transactionType === 'income') recurringMonthlyIncome += monthly;
+      else recurringMonthlyExpense += monthly;
     });
 
     return {
@@ -344,6 +358,9 @@ export function Dashboard() {
       trackedMonths: activeMonths,
       thisMonthActualIncome,
       thisMonthActualExpense,
+      thisMonthSavingsExpense,
+      thisMonthRecurringExpense,
+      thisMonthFlexibleExpense,
     };
   }, [transactions, goals, regularSpendings, upcomingItems]);
 
@@ -447,12 +464,29 @@ export function Dashboard() {
                 <div className="h-1 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, projections.projIncome > 0 ? (projections.thisMonthActualIncome / projections.projIncome) * 100 : 0)}%` }} />
               </div>
             </div>
-            <div className="bg-red-50 rounded-xl p-3">
+            <div className="relative group bg-red-50 rounded-xl p-3 cursor-help">
               <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Expenses</p>
               <p className="text-sm font-bold text-red-600">{fmt(projections.thisMonthActualExpense)}</p>
               <p className="text-[10px] text-gray-400 mt-0.5">of {fmt(projections.projExpense)} proj.</p>
               <div className="mt-1.5 w-full bg-red-100 rounded-full h-1">
                 <div className="h-1 rounded-full bg-red-500" style={{ width: `${Math.min(100, projections.projExpense > 0 ? (projections.thisMonthActualExpense / projections.projExpense) * 100 : 0)}%` }} />
+              </div>
+              <div className="pointer-events-none absolute left-0 top-full mt-2 z-20 w-56 rounded-xl border border-red-200 bg-white p-2.5 shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">This Month Expense Mix</p>
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-500">Savings to pots/goals</span>
+                    <span className="font-semibold text-red-600">{fmt(projections.thisMonthSavingsExpense)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-500">Recurring bills</span>
+                    <span className="font-semibold text-red-600">{fmt(projections.thisMonthRecurringExpense)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-500">Other spending</span>
+                    <span className="font-semibold text-red-600">{fmt(projections.thisMonthFlexibleExpense)}</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div className={`rounded-xl p-3 ${projections.projNet >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>

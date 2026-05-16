@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getOccurrences, localDateKey, parseLocalDate } from '../lib/recurrence';
+import { getRecurringPotFlowDirection } from '../lib/transactionFlow';
 import type { Transaction, SavingsGoal, RegularSpending, UpcomingItem, Pot } from '../types';
 
 // Firestore rejects undefined field values — strip them before writing
@@ -76,7 +77,7 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
           ...(item.potId
             ? {
                 potId: item.potId,
-                potDirection: item.transactionType === 'income' ? 'in' : 'out',
+                potDirection: getRecurringPotFlowDirection(item) ?? (item.transactionType === 'income' ? 'in' : 'out'),
               }
             : {}),
         };

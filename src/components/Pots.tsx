@@ -7,7 +7,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { Pot, Frequency } from '../types';
 import { calcPotBalance } from '../lib/potBalance';
-import { getPotFlowDirection } from '../lib/transactionFlow';
+import { getPotFlowDirection, getRecurringPotFlowDirection } from '../lib/transactionFlow';
 import { PageContainer } from './ui/PageContainer';
 import { PageHeader } from './ui/PageHeader';
 import { ActionButton } from './ui/ActionButton';
@@ -49,10 +49,15 @@ export function PotsPage() {
   const potBalance = (potId: string) => calcPotBalance(potId, transactions);
 
   const totalBalance = pots.reduce((s, p) => s + potBalance(p.id), 0);
-  const totalMonthlyIn = pots.reduce((s, p) =>
-    s + regularSpendings
-      .filter((r) => r.potId === p.id && r.transactionType === 'income')
-      .reduce((ss, r) => ss + r.amount * (MONTHLY_FACTOR[r.frequency] ?? 1), 0), 0);
+  const totalMonthlyIn = pots.reduce((s, p) => {
+    const inForPot = regularSpendings
+      .filter((r) => r.potId === p.id)
+      .reduce((sum, r) => {
+        if (getRecurringPotFlowDirection(r) !== 'in') return sum;
+        return sum + r.amount * (MONTHLY_FACTOR[r.frequency] ?? 1);
+      }, 0);
+    return s + inForPot;
+  }, 0);
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -255,8 +260,16 @@ export function PotsPage() {
               .filter((t) => t.potId === pot.id)
               .sort((a, b) => b.date.localeCompare(a.date));
             const linked = regularSpendings.filter((r) => r.potId === pot.id);
-            const monthlyIn  = linked.filter((r) => r.transactionType === 'income' ).reduce((s, r) => s + r.amount * (MONTHLY_FACTOR[r.frequency] ?? 1), 0);
-            const monthlyOut = linked.filter((r) => r.transactionType === 'expense').reduce((s, r) => s + r.amount * (MONTHLY_FACTOR[r.frequency] ?? 1), 0);
+            const { monthlyIn, monthlyOut } = linked.reduce(
+              (acc, r) => {
+                const monthly = r.amount * (MONTHLY_FACTOR[r.frequency] ?? 1);
+                const dir = getRecurringPotFlowDirection(r);
+                if (dir === 'in') acc.monthlyIn += monthly;
+                else if (dir === 'out') acc.monthlyOut += monthly;
+                return acc;
+              },
+              { monthlyIn: 0, monthlyOut: 0 }
+            );
             const isExpanded = expandedPotId === pot.id;
             const isActioning = actionPotId === pot.id;
             const amt = parseFloat(actionAmount);
