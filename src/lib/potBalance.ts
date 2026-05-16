@@ -1,5 +1,5 @@
 import type { Transaction } from '../types';
-import { getPotFlowDirection } from './transactionFlow';
+import { getPotSignedAmount } from './transactionFlow';
 
 /**
  * Computes the balance of a pot from its transactions.
@@ -9,10 +9,5 @@ import { getPotFlowDirection } from './transactionFlow';
 export function calcPotBalance(potId: string, transactions: Transaction[]): number {
   return transactions
     .filter((t) => t.potId === potId)
-    .reduce((sum, t) => {
-      const direction = getPotFlowDirection(t);
-      if (direction === 'in') return sum + t.amount;
-      if (direction === 'out') return sum - t.amount;
-      return sum;
-    }, 0);
+    .reduce((sum, t) => sum + getPotSignedAmount(t), 0);
 }

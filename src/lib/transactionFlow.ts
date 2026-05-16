@@ -7,7 +7,7 @@ const POT_OUT_INCOME_CATEGORIES = new Set(['Pot Withdrawal', 'Goal Withdrawal', 
 
 type PotFlowTx = Pick<
   Transaction,
-  'type' | 'potId' | 'potDirection' | 'goalId' | 'goalWithdrawal' | 'category'
+  'type' | 'potId' | 'potDirection' | 'goalId' | 'goalWithdrawal' | 'category' | 'description' | 'recurringId' | 'amount'
 >;
 
 /**
@@ -21,19 +21,31 @@ export function getPotFlowDirection(tx: PotFlowTx): PotFlowDirection | null {
   if (!tx.potId) return null;
   if (tx.potDirection === 'in' || tx.potDirection === 'out') return tx.potDirection;
 
+  const description = tx.description?.toLowerCase() ?? '';
+  const isDepositLike = /\bdeposit\b/.test(description);
+
   if (tx.type === 'transfer') return 'in';
 
   if (tx.type === 'income') {
-    if (tx.goalWithdrawal || tx.goalId || POT_OUT_INCOME_CATEGORIES.has(tx.category)) return 'out';
+    if (tx.goalWithdrawal || POT_OUT_INCOME_CATEGORIES.has(tx.category)) return 'out';
     return 'in';
   }
 
   if (tx.type === 'expense') {
     if (tx.goalId || POT_IN_EXPENSE_CATEGORIES.has(tx.category)) return 'in';
+    // Legacy support: some recurring pot top-ups were saved as `expense` + potId.
+    if (tx.recurringId && isDepositLike) return 'in';
     return 'out';
   }
 
   return null;
+}
+
+export function getPotSignedAmount(tx: PotFlowTx): number {
+  const direction = getPotFlowDirection(tx);
+  if (direction === 'in') return tx.amount;
+  if (direction === 'out') return -tx.amount;
+  return 0;
 }
 
 export function isPotExpenseOutflow(tx: PotFlowTx): boolean {

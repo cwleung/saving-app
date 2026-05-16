@@ -7,6 +7,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import type { Pot, Frequency } from '../types';
 import { calcPotBalance } from '../lib/potBalance';
+import { getPotFlowDirection } from '../lib/transactionFlow';
 import { PageContainer } from './ui/PageContainer';
 import { PageHeader } from './ui/PageHeader';
 import { ActionButton } from './ui/ActionButton';
@@ -44,7 +45,7 @@ export function PotsPage() {
   const [actionAmount, setActionAmount] = useState('');
   const [expandedPotId, setExpandedPotId] = useState<string | null>(null);
 
-  // expense = deposit INTO pot (+), income = withdrawal FROM pot (−), transfer = initial balance (+, neutral in P&L)
+  // Shared resolver keeps legacy + new transaction formats consistent.
   const potBalance = (potId: string) => calcPotBalance(potId, transactions);
 
   const totalBalance = pots.reduce((s, p) => s + potBalance(p.id), 0);
@@ -381,27 +382,29 @@ export function PotsPage() {
                       </button>
                       {isExpanded && (
                         <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
-                          {potTxs.map((t) => (
-                            <div key={t.id} className="flex items-center gap-2 text-xs">
-                              {/* transfer = initial balance (neutral/blue), expense = deposit, income = withdrawal */}
-                              {t.type === 'transfer' ? (
-                                <ArrowUpCircle className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                              ) : t.type === 'expense' ? (
-                                <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                              ) : (
-                                <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                              )}
-                              <span className="flex-1 text-gray-600 truncate">{t.description || t.category}</span>
-                              <span className="text-gray-400 shrink-0">
-                                {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                              <span className={`font-semibold shrink-0 ${
-                                t.type === 'expense' ? 'text-emerald-600' : t.type === 'transfer' ? 'text-blue-500' : 'text-red-500'
-                              }`}>
-                                {t.type === 'income' ? '−' : '+'}{fmt(t.amount)}
-                              </span>
-                            </div>
-                          ))}
+                          {potTxs.map((t) => {
+                            const direction = getPotFlowDirection(t);
+                            const isOut = direction === 'out';
+
+                            return (
+                              <div key={t.id} className="flex items-center gap-2 text-xs">
+                                {isOut ? (
+                                  <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                                ) : (
+                                  <ArrowUpCircle className={`w-3.5 h-3.5 shrink-0 ${t.type === 'transfer' ? 'text-blue-400' : 'text-emerald-500'}`} />
+                                )}
+                                <span className="flex-1 text-gray-600 truncate">{t.description || t.category}</span>
+                                <span className="text-gray-400 shrink-0">
+                                  {new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                                <span className={`font-semibold shrink-0 ${
+                                  isOut ? 'text-red-500' : t.type === 'transfer' ? 'text-blue-500' : 'text-emerald-600'
+                                }`}>
+                                  {isOut ? '−' : '+'}{fmt(t.amount)}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
