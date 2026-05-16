@@ -43,3 +43,22 @@ export function isPotExpenseOutflow(tx: PotFlowTx): boolean {
 export function isSavingsDraw(tx: PotFlowTx): boolean {
   return tx.type === 'income' && (Boolean(tx.goalWithdrawal) || getPotFlowDirection(tx) === 'out');
 }
+
+/**
+ * Budget expense:
+ * - regular expenses except pot-funded spending
+ * - pot deposits recorded as income+pot(in) in legacy/alt flows
+ */
+export function isDashboardExpense(tx: PotFlowTx): boolean {
+  if (tx.type === 'expense') return !isPotExpenseOutflow(tx);
+  return tx.type === 'income' && getPotFlowDirection(tx) === 'in';
+}
+
+/**
+ * Budget income excludes internal savings transfers.
+ */
+export function isDashboardIncome(tx: PotFlowTx): boolean {
+  if (tx.type === 'refund') return true;
+  if (tx.type !== 'income') return false;
+  return !isSavingsDraw(tx) && getPotFlowDirection(tx) !== 'in';
+}

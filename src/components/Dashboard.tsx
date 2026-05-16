@@ -20,7 +20,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
 import { countOccurrencesInRange, parseLocalDate } from '../lib/recurrence';
-import { isPotExpenseOutflow, isSavingsDraw } from '../lib/transactionFlow';
+import { getPotFlowDirection, isDashboardExpense, isDashboardIncome } from '../lib/transactionFlow';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -60,13 +60,13 @@ export function Dashboard() {
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
 
   const totalIncome = useMemo(
-    () => transactions.filter((t) => t.type === 'income' || t.type === 'refund').reduce((s, t) => s + t.amount, 0),
+    () => transactions.filter((t) => isDashboardIncome(t)).reduce((s, t) => s + t.amount, 0),
     [transactions]
   );
 
   const totalExpenses = useMemo(
     () => transactions
-      .filter((t) => t.type === 'expense' && !isPotExpenseOutflow(t))
+      .filter((t) => isDashboardExpense(t))
       .reduce((s, t) => s + t.amount, 0),
     [transactions]
   );
@@ -134,8 +134,8 @@ export function Dashboard() {
       else k = monthKey(d);
       
       if (k in buckets) {
-        if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
-        else if (t.type === 'expense' && !isPotExpenseOutflow(t)) buckets[k].expense += t.amount;
+        if (isDashboardIncome(t)) buckets[k].income += t.amount;
+        else if (isDashboardExpense(t)) buckets[k].expense += t.amount;
       }
     });
 
@@ -211,12 +211,12 @@ export function Dashboard() {
       txMonths.add(k);
       
       if (last3Keys.includes(k)) {
-        if ((t.type === 'income' || t.type === 'refund') && !isSavingsDraw(t)) {
+        if (isDashboardIncome(t)) {
           totalHistoryIncome += t.amount;
-        } else if (t.type === 'expense' && !isPotExpenseOutflow(t)) {
+        } else if (isDashboardExpense(t)) {
           totalHistoryExpense += t.amount;
           
-          if (t.goalId || t.potId) {
+          if (t.goalId || getPotFlowDirection(t) === 'in') {
             totalHistoryGoalDeposits += t.amount;
           }
           
@@ -237,11 +237,11 @@ export function Dashboard() {
     const estimatedRemainingManualSpend = avgDailyManualSpend * daysRemaining;
 
     const thisMonthActualIncome = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && (t.type === 'income' || t.type === 'refund'))
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && isDashboardIncome(t))
       .reduce((s, t) => s + t.amount, 0);
 
     const thisMonthActualExpense = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense' && !isPotExpenseOutflow(t))
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && isDashboardExpense(t))
       .reduce((s, t) => s + t.amount, 0);
 
     const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -252,10 +252,12 @@ export function Dashboard() {
       const occurrencesLeft = countOccurrencesInRange(r, tomorrowStart, endOfMonth);
       if (occurrencesLeft <= 0) return;
       const amountLeft = occurrencesLeft * r.amount;
-      if (r.transactionType === 'expense') {
-        if (!r.potId) recurringExpenseRemainingThisMonth += amountLeft;
+      if (r.transactionType === 'income') {
+        if (r.potId) recurringExpenseRemainingThisMonth += amountLeft;
+        else recurringIncomeRemainingThisMonth += amountLeft;
+        return;
       }
-      else recurringIncomeRemainingThisMonth += amountLeft;
+      if (!r.potId) recurringExpenseRemainingThisMonth += amountLeft;
     });
 
     let upcomingExpenseThisMonth = 0;
@@ -288,7 +290,7 @@ export function Dashboard() {
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      if (t.type !== 'expense' || t.recurringId || isPotExpenseOutflow(t)) return;
+      if (t.recurringId || !isDashboardExpense(t)) return;
       const k = monthKey(new Date(t.date));
       if (k === lastMonthK) lastExp += t.amount;
       if (k === prevMonthK) prevExp += t.amount;
@@ -312,10 +314,12 @@ export function Dashboard() {
     let recurringMonthlyIncome = 0;
     regularSpendings.forEach((r) => {
       const monthly = r.amount * (FREQ_MONTHLY[r.frequency] ?? 1);
-      if (r.transactionType === 'expense') {
-        if (!r.potId) recurringMonthlyExpense += monthly;
+      if (r.transactionType === 'income') {
+        if (r.potId) recurringMonthlyExpense += monthly;
+        else recurringMonthlyIncome += monthly;
+        return;
       }
-      else recurringMonthlyIncome += monthly;
+      if (!r.potId) recurringMonthlyExpense += monthly;
     });
 
     return {
@@ -467,7 +471,7 @@ export function Dashboard() {
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Monthly Averages — Last 3 Months</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="excludes pot/goal draws" color="emerald" />
+            <ProjectionCard label="Avg Income" value={fmt(projections.avgMonthlyIncome)} sub="excludes internal pot/goal moves" color="emerald" />
             <ProjectionCard label="Avg Expenses" value={fmt(projections.avgMonthlyExpense)} sub="includes savings" color="red" />
             <ProjectionCard label="Annual Savings" value={fmt(projections.annualSavings)} sub="at current rate" color={projections.annualSavings >= 0 ? 'blue' : 'orange'} />
             <ProjectionCard
