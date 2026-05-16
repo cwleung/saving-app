@@ -206,7 +206,12 @@ export function RegularSpendingPage() {
                               description: item.name,
                               date: new Date().toISOString(),
                               ...(item.goalId ? { goalId: item.goalId } : {}),
-                              ...(item.potId  ? { potId:  item.potId  } : {}),
+                              ...(item.potId
+                                ? {
+                                    potId: item.potId,
+                                    potDirection: item.transactionType === 'income' ? 'in' : 'out',
+                                  }
+                                : {}),
                             })}
                             title="Log as transaction today"
                             className="w-8 h-8 flex items-center justify-center rounded-full text-gray-300 hover:text-emerald-500 hover:bg-emerald-50 cursor-pointer transition-colors"

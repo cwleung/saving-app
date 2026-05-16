@@ -72,6 +72,7 @@ export function PotsPage() {
         description: `Starting balance — ${form.name}`,
         date: new Date().toISOString(),
         potId,
+        potDirection: 'in',
       });
     }
     setForm(EMPTY_FORM);
@@ -102,6 +103,7 @@ export function PotsPage() {
           description: `Balance adjustment — ${editForm.name}`,
           date: new Date().toISOString(),
           potId: editPot.id,
+          potDirection: diff > 0 ? 'in' : 'out',
         });
       }
     }
@@ -121,6 +123,7 @@ export function PotsPage() {
       description: `${actionMode === 'deposit' ? 'Deposit to' : 'Withdrawal from'} ${pot.name}`,
       date: new Date().toISOString(),
       potId: pot.id,
+      potDirection: actionMode === 'deposit' ? 'in' : 'out',
     });
     setActionPotId(null);
     setActionAmount('');

@@ -73,7 +73,12 @@ async function autoGenerateRecurring(uid: string, items: RegularSpending[]) {
           date: new Date(dateStr + 'T00:00:00').toISOString(),
           recurringId: item.id,
           ...(item.goalId ? { goalId: item.goalId } : {}),
-          ...(item.potId  ? { potId:  item.potId  } : {}),
+          ...(item.potId
+            ? {
+                potId: item.potId,
+                potDirection: item.transactionType === 'income' ? 'in' : 'out',
+              }
+            : {}),
         };
         await setDoc(doc(db, `users/${uid}/transactions/${txId}`), clean(tx));
       }

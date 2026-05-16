@@ -137,7 +137,7 @@ export function SavingsGoals() {
       description: `Deposit to ${goal.name}`,
       date: new Date().toISOString(),
       goalId: goal.id,
-      ...(goal.potId ? { potId: goal.potId } : {}),
+      ...(goal.potId ? { potId: goal.potId, potDirection: 'in' as const } : {}),
     });
     setActionGoalId(null);
     setActionAmount('');
@@ -156,7 +156,7 @@ export function SavingsGoals() {
       date: new Date().toISOString(),
       goalId: goal.id,
       goalWithdrawal: true,
-      ...(goal.potId ? { potId: goal.potId } : {}),
+      ...(goal.potId ? { potId: goal.potId, potDirection: 'out' as const } : {}),
     });
     setActionGoalId(null);
     setActionAmount('');

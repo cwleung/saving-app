@@ -20,6 +20,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { calcPotBalance } from '../lib/potBalance';
 import { countOccurrencesInRange, parseLocalDate } from '../lib/recurrence';
+import { isPotExpenseOutflow, isSavingsDraw } from '../lib/transactionFlow';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -54,7 +55,6 @@ function monthLabel(keyStr: string): string {
 export function Dashboard() {
   const { transactions, goals, regularSpendings, upcomingItems } = useAppStore();
 
-  const potBalance = (potId: string) => calcPotBalance(potId, transactions);
   const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
@@ -66,7 +66,7 @@ export function Dashboard() {
 
   const totalExpenses = useMemo(
     () => transactions
-      .filter((t) => t.type === 'expense')
+      .filter((t) => t.type === 'expense' && !isPotExpenseOutflow(t))
       .reduce((s, t) => s + t.amount, 0),
     [transactions]
   );
@@ -76,7 +76,10 @@ export function Dashboard() {
   const totalGoalProgress = useMemo(() => {
     if (!goals.length) return 0;
     const total = goals.reduce((s, g) => s + g.targetAmount, 0);
-    const current = goals.reduce((s, g) => s + Math.min(potBalance(g.potId ?? ''), g.targetAmount), 0);
+    const current = goals.reduce(
+      (s, g) => s + Math.min(calcPotBalance(g.potId ?? '', transactions), g.targetAmount),
+      0
+    );
     return total ? Math.round((current / total) * 100) : 0;
   }, [goals, transactions]);
 
@@ -132,7 +135,7 @@ export function Dashboard() {
       
       if (k in buckets) {
         if (t.type === 'income' || t.type === 'refund') buckets[k].income += t.amount;
-        else if (t.type === 'expense') buckets[k].expense += t.amount;
+        else if (t.type === 'expense' && !isPotExpenseOutflow(t)) buckets[k].expense += t.amount;
       }
     });
 
@@ -183,8 +186,6 @@ export function Dashboard() {
   const projections = useMemo(() => {
     const now = new Date();
     const thisMonthK = monthKey(now);
-    const isSavingsDraw = (t: { type: string; potId?: string; goalWithdrawal?: boolean }) =>
-      t.type === 'income' && (!!t.potId || !!t.goalWithdrawal);
 
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const endOfMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -212,7 +213,7 @@ export function Dashboard() {
       if (last3Keys.includes(k)) {
         if ((t.type === 'income' || t.type === 'refund') && !isSavingsDraw(t)) {
           totalHistoryIncome += t.amount;
-        } else if (t.type === 'expense') {
+        } else if (t.type === 'expense' && !isPotExpenseOutflow(t)) {
           totalHistoryExpense += t.amount;
           
           if (t.goalId || t.potId) {
@@ -240,7 +241,7 @@ export function Dashboard() {
       .reduce((s, t) => s + t.amount, 0);
 
     const thisMonthActualExpense = transactions
-      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense')
+      .filter((t) => monthKey(new Date(t.date)) === thisMonthK && t.type === 'expense' && !isPotExpenseOutflow(t))
       .reduce((s, t) => s + t.amount, 0);
 
     const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -251,7 +252,9 @@ export function Dashboard() {
       const occurrencesLeft = countOccurrencesInRange(r, tomorrowStart, endOfMonth);
       if (occurrencesLeft <= 0) return;
       const amountLeft = occurrencesLeft * r.amount;
-      if (r.transactionType === 'expense') recurringExpenseRemainingThisMonth += amountLeft;
+      if (r.transactionType === 'expense') {
+        if (!r.potId) recurringExpenseRemainingThisMonth += amountLeft;
+      }
       else recurringIncomeRemainingThisMonth += amountLeft;
     });
 
@@ -285,7 +288,7 @@ export function Dashboard() {
     const prevMonthK = monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1));
     let lastExp = 0, prevExp = 0;
     transactions.forEach((t) => {
-      if (t.type !== 'expense' || t.recurringId) return;
+      if (t.type !== 'expense' || t.recurringId || isPotExpenseOutflow(t)) return;
       const k = monthKey(new Date(t.date));
       if (k === lastMonthK) lastExp += t.amount;
       if (k === prevMonthK) prevExp += t.amount;
@@ -293,7 +296,7 @@ export function Dashboard() {
     const spendingTrend = prevExp > 0 ? ((lastExp - prevExp) / prevExp) * 100 : 0;
 
     const goalProjections = goals.map((g) => {
-      const remaining = Math.max(0, g.targetAmount - potBalance(g.potId ?? ''));
+      const remaining = Math.max(0, g.targetAmount - calcPotBalance(g.potId ?? '', transactions));
       const monthsNeeded = avgMonthlySavings > 0 ? Math.ceil(remaining / avgMonthlySavings) : Infinity;
       const onTrack = g.deadline
         ? monthsNeeded <= Math.max(0, (new Date(g.deadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30))
@@ -309,7 +312,9 @@ export function Dashboard() {
     let recurringMonthlyIncome = 0;
     regularSpendings.forEach((r) => {
       const monthly = r.amount * (FREQ_MONTHLY[r.frequency] ?? 1);
-      if (r.transactionType === 'expense') recurringMonthlyExpense += monthly;
+      if (r.transactionType === 'expense') {
+        if (!r.potId) recurringMonthlyExpense += monthly;
+      }
       else recurringMonthlyIncome += monthly;
     });
 
@@ -576,7 +581,9 @@ export function Dashboard() {
               <YAxis tick={{ fontSize: 9, fill: chartAxisColor }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={chartTooltipStyle}
-                formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
+                formatter={(v: unknown) => [
+                  typeof v === 'number' ? fmt(v) : Array.isArray(v) ? v.join(' - ') : String(v ?? ''),
+                ]}
                 labelStyle={{ fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}
                 cursor={{ fill: 'rgba(255,255,255,0.03)' }}
               />
@@ -661,7 +668,9 @@ export function Dashboard() {
               <YAxis tick={{ fontSize: 9, fill: chartAxisColor }} tickFormatter={(v: number) => fmtShort(v)} width={46} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={chartTooltipStyle}
-                formatter={(v: any) => [typeof v === 'number' ? fmt(v) : String(v ?? '')]}
+                formatter={(v: unknown) => [
+                  typeof v === 'number' ? fmt(v) : Array.isArray(v) ? v.join(' - ') : String(v ?? ''),
+                ]}
                 cursor={{ fill: 'rgba(255,255,255,0.03)' }}
               />
               <ReferenceLine y={0} stroke={chartRefColor} strokeWidth={1} />
