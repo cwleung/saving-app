@@ -58,7 +58,7 @@ export function Dashboard() {
   const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
-  const [hoveredPieCategory, setHoveredPieCategory] = useState<string | null>(null);
+  const [selectedPieCategory, setSelectedPieCategory] = useState<string | null>(null);
 
   const totalIncome = useMemo(
     () => transactions.filter((t) => isDashboardIncome(t)).reduce((s, t) => s + t.amount, 0),
@@ -190,11 +190,11 @@ export function Dashboard() {
   }, [pieExpenseTransactions]);
 
   const activePieCategory = useMemo(
-    () => (hoveredPieCategory && expenseByCategory.some((e) => e.name === hoveredPieCategory) ? hoveredPieCategory : null),
-    [hoveredPieCategory, expenseByCategory]
+    () => (selectedPieCategory && expenseByCategory.some((e) => e.name === selectedPieCategory) ? selectedPieCategory : null),
+    [selectedPieCategory, expenseByCategory]
   );
 
-  const hoveredPieTransactions = useMemo(() => {
+  const activePieTransactions = useMemo(() => {
     if (!activePieCategory) return [];
     return pieExpenseTransactions.filter((t) => (t.category || 'Uncategorized') === activePieCategory);
   }, [pieExpenseTransactions, activePieCategory]);
@@ -689,8 +689,8 @@ export function Dashboard() {
                     outerRadius={80}
                     paddingAngle={2}
                     dataKey="value"
-                    onMouseEnter={(_: unknown, index: number) => setHoveredPieCategory(expenseByCategory[index]?.name ?? null)}
-                    onMouseLeave={() => setHoveredPieCategory(null)}
+                    onMouseEnter={(_: unknown, index: number) => setSelectedPieCategory(expenseByCategory[index]?.name ?? null)}
+                    onClick={(_: unknown, index: number) => setSelectedPieCategory(expenseByCategory[index]?.name ?? null)}
                   >
                     {expenseByCategory.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="white" strokeWidth={2} />
@@ -715,8 +715,8 @@ export function Dashboard() {
                       className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1 transition-colors cursor-default ${
                         activePieCategory === e.name ? 'bg-emerald-50' : ''
                       }`}
-                      onMouseEnter={() => setHoveredPieCategory(e.name)}
-                      onMouseLeave={() => setHoveredPieCategory(null)}
+                      onMouseEnter={() => setSelectedPieCategory(e.name)}
+                      onClick={() => setSelectedPieCategory(e.name)}
                     >
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                       <span className="flex-1 text-gray-600 truncate">{e.name}</span>
@@ -731,10 +731,19 @@ export function Dashboard() {
                   <>
                     <div className="flex items-center justify-between gap-2 text-xs mb-2">
                       <span className="font-semibold text-gray-700 truncate">{activePieCategory}</span>
-                      <span className="text-gray-400 shrink-0">{hoveredPieTransactions.length} tx · {pieSpanLabel[pieSpan]}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-gray-400">{activePieTransactions.length} tx · {pieSpanLabel[pieSpan]}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPieCategory(null)}
+                          className="text-[11px] text-gray-400 hover:text-gray-600 cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                      {hoveredPieTransactions.slice(0, 8).map((tx) => (
+                      {activePieTransactions.slice(0, 8).map((tx) => (
                         <div key={tx.id} className="flex items-center gap-2 text-xs">
                           <span className="flex-1 text-gray-600 truncate">{tx.description || tx.category}</span>
                           <span className="text-gray-400 shrink-0">
@@ -744,7 +753,7 @@ export function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    {hoveredPieTransactions.length > 8 && (
+                    {activePieTransactions.length > 8 && (
                       <p className="text-[11px] text-gray-400 mt-2">Showing latest 8 transactions.</p>
                     )}
                   </>
