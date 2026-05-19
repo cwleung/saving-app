@@ -58,6 +58,7 @@ export function Dashboard() {
   const { fmt, fmtShort } = useCurrency();
   const [chartSpan, setChartSpan] = useState<TimeSpan>('6M');
   const [pieSpan, setPieSpan] = useState<TimeSpan>('ALL');
+  const [hoveredPieCategory, setHoveredPieCategory] = useState<string | null>(null);
 
   const totalIncome = useMemo(
     () => transactions.filter((t) => isDashboardIncome(t)).reduce((s, t) => s + t.amount, 0),
@@ -160,27 +161,43 @@ export function Dashboard() {
   }, [transactions, chartSpan]);
 
   // ── Pie chart data by time span ──────────────────────────────────────
-  const expenseByCategory = useMemo(() => {
+  const pieExpenseTransactions = useMemo(() => {
     const now = new Date();
     const spanToDays: Record<TimeSpan, number> = { '1W': 7, '1M': 30, '3M': 91, '6M': 183, '1Y': 365, ALL: 99999 };
     const cutoff = new Date(now.getTime() - spanToDays[pieSpan] * 86_400_000);
 
-    const cats: Record<string, number> = {};
-    transactions.filter(
+    return transactions
+      .filter(
         (t) =>
           t.type === 'expense' &&
           new Date(t.date) >= cutoff &&
           !t.goalId &&
           !t.potId
-      ).forEach((t) => {
-        const catName = t.category || 'Uncategorized';
-        cats[catName] = (cats[catName] || 0) + t.amount;
-      });
-      
+      )
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [transactions, pieSpan]);
+
+  const expenseByCategory = useMemo(() => {
+    const cats: Record<string, number> = {};
+    pieExpenseTransactions.forEach((t) => {
+      const catName = t.category || 'Uncategorized';
+      cats[catName] = (cats[catName] || 0) + t.amount;
+    });
+
     return Object.entries(cats)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-  }, [transactions, pieSpan]);
+  }, [pieExpenseTransactions]);
+
+  const activePieCategory = useMemo(
+    () => (hoveredPieCategory && expenseByCategory.some((e) => e.name === hoveredPieCategory) ? hoveredPieCategory : null),
+    [hoveredPieCategory, expenseByCategory]
+  );
+
+  const hoveredPieTransactions = useMemo(() => {
+    if (!activePieCategory) return [];
+    return pieExpenseTransactions.filter((t) => (t.category || 'Uncategorized') === activePieCategory);
+  }, [pieExpenseTransactions, activePieCategory]);
 
 // ── Projections ──────────────────────────────────────────────────────
   const projections = useMemo(() => {
@@ -383,6 +400,15 @@ export function Dashboard() {
     projections.spendingTrend === 0
       ? 'Flat vs last month'
       : `${projections.spendingTrend > 0 ? '+' : ''}${projections.spendingTrend.toFixed(1)}% vs last month`;
+  const pieTotal = expenseByCategory.reduce((s, e) => s + e.value, 0);
+  const pieSpanLabel: Record<TimeSpan, string> = {
+    '1W': 'last 7 days',
+    '1M': 'last 30 days',
+    '3M': 'last 3 months',
+    '6M': 'last 6 months',
+    '1Y': 'last year',
+    ALL: 'all time',
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-5 space-y-4 pb-28 sm:pb-10">
@@ -655,7 +681,17 @@ export function Dashboard() {
             <>
               <ResponsiveContainer width="100%" height={190}>
                 <PieChart>
-                  <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
+                  <Pie
+                    data={expenseByCategory}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                    onMouseEnter={(_: unknown, index: number) => setHoveredPieCategory(expenseByCategory[index]?.name ?? null)}
+                    onMouseLeave={() => setHoveredPieCategory(null)}
+                  >
                     {expenseByCategory.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="white" strokeWidth={2} />
                     ))}
@@ -664,8 +700,7 @@ export function Dashboard() {
                     contentStyle={chartTooltipStyle}
                     formatter={(value, name) => {
                       const val = typeof value === 'number' ? value : 0;
-                      const total = expenseByCategory.reduce((s, e) => s + e.value, 0);
-                      const percent = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
+                      const percent = pieTotal > 0 ? ((val / pieTotal) * 100).toFixed(1) : '0';
                       return [`${name} · ${percent}%`];
                     }}
                   />
@@ -673,10 +708,16 @@ export function Dashboard() {
               </ResponsiveContainer>
               <div className="mt-3 space-y-1.5">
                 {expenseByCategory.slice(0, 5).map((e, i) => {
-                  const total = expenseByCategory.reduce((s, c) => s + c.value, 0);
-                  const pct = total > 0 ? (e.value / total) * 100 : 0;
+                  const pct = pieTotal > 0 ? (e.value / pieTotal) * 100 : 0;
                   return (
-                    <div key={e.name} className="flex items-center gap-2 text-xs">
+                    <div
+                      key={e.name}
+                      className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1 transition-colors cursor-default ${
+                        activePieCategory === e.name ? 'bg-emerald-50' : ''
+                      }`}
+                      onMouseEnter={() => setHoveredPieCategory(e.name)}
+                      onMouseLeave={() => setHoveredPieCategory(null)}
+                    >
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                       <span className="flex-1 text-gray-600 truncate">{e.name}</span>
                       <span className="text-gray-400 w-9 text-right shrink-0">{pct.toFixed(1)}%</span>
@@ -684,6 +725,32 @@ export function Dashboard() {
                     </div>
                   );
                 })}
+              </div>
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                {activePieCategory ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2 text-xs mb-2">
+                      <span className="font-semibold text-gray-700 truncate">{activePieCategory}</span>
+                      <span className="text-gray-400 shrink-0">{hoveredPieTransactions.length} tx · {pieSpanLabel[pieSpan]}</span>
+                    </div>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {hoveredPieTransactions.slice(0, 8).map((tx) => (
+                        <div key={tx.id} className="flex items-center gap-2 text-xs">
+                          <span className="flex-1 text-gray-600 truncate">{tx.description || tx.category}</span>
+                          <span className="text-gray-400 shrink-0">
+                            {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                          <span className="font-semibold text-red-600 shrink-0">-{fmt(tx.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {hoveredPieTransactions.length > 8 && (
+                      <p className="text-[11px] text-gray-400 mt-2">Showing latest 8 transactions.</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-400">Hover a pie slice to see matching transactions in this timespan.</p>
+                )}
               </div>
             </>
           ) : (
