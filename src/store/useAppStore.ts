@@ -21,8 +21,6 @@ function clean<T extends object>(obj: T): T {
 
 // ─── Recurring-transaction auto-generation ───────────────────────────────────
 
-/** IDs already processed in this browser session — prevents duplicate writes on re-snapshots */
-const processedRecurringSession = new Set<string>();
 // In-flight guard: prevents re-entrant calls when Firestore snapshots fire
 // mid-write (writing a transaction triggers a snapshot → calls this again)
 const processingInFlight = new Set<string>();
@@ -143,9 +141,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   setUid: (uid) => {
-    // Clear session state so new login gets fresh generation
-    processedRecurringSession.clear();
-
     unsubTransactions?.();
     unsubGoals?.();
     unsubPots?.();
@@ -266,8 +261,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
   updateRegularSpending: (item) => {
     const uid = get().uid;
     if (!uid) return;
-    // Clear from session Set so edited item gets re-processed on next snapshot
-    processedRecurringSession.delete(item.id);
     void setDoc(doc(db, `users/${uid}/regularSpendings/${item.id}`), clean(item));
   },
 
@@ -278,7 +271,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
     get().transactions
       .filter((t) => t.recurringId === id)
       .forEach((t) => void deleteDoc(doc(db, `users/${uid}/transactions/${t.id}`)));
-    processedRecurringSession.delete(id);
     void deleteDoc(doc(db, `users/${uid}/regularSpendings/${id}`));
   },
 

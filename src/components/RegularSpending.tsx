@@ -3,6 +3,7 @@ import { Plus, Trash2, Pencil, X, RepeatIcon, ArrowRightLeft, PiggyBank } from '
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
+import { parseLocalDate } from '../lib/recurrence';
 import type { RegularSpending, Frequency } from '../types';
 import { PageContainer } from './ui/PageContainer';
 import { PageHeader } from './ui/PageHeader';
@@ -187,7 +188,10 @@ export function RegularSpendingPage() {
                           </div>
                           <p className="text-xs text-gray-400 mt-0.5">
                             {item.category}
-                            {item.endDate && ` · ends ${new Date(item.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`}
+                            {item.endDate && (() => {
+                              const d = parseLocalDate(item.endDate);
+                              return ` · ends ${d ? d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : item.endDate}`;
+                            })()}
                           </p>
                         </div>
                         <div className="text-right shrink-0 mr-1">

@@ -1,4 +1,6 @@
 import { LogOut, TrendingUp, LayoutDashboard, List, Target, RepeatIcon, Clock, ScrollText, PiggyBank } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
+import { CURRENCIES } from '../lib/currency';
 
 export type Tab = 'Dashboard' | 'Transactions' | 'Goals' | 'Pots' | 'Regular' | 'Upcoming' | 'Changelog';
 
@@ -22,6 +24,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 const BOTTOM_TABS: Tab[] = ['Dashboard', 'Transactions', 'Goals', 'Pots', 'Regular', 'Upcoming'];
 
 export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
+  const { currency, setCurrency } = useCurrency();
+
   return (
     <>
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
@@ -65,7 +69,25 @@ export function Header({ onLogout, activeTab, onTabChange }: HeaderProps) {
               >
                 <ScrollText className="w-4 h-4" />
               </button>
-              {/* Currency picker removed */}
+              {/* Currency picker — persisted in localStorage via the store */}
+              <label className="relative flex items-center">
+                <span className="sr-only">Currency</span>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="appearance-none bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg pl-2.5 pr-6 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-colors"
+                  title={`Currency: ${currency}`}
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.symbol} {c.code}
+                    </option>
+                  ))}
+                </select>
+                <svg className="w-3 h-3 text-gray-500 absolute right-1.5 pointer-events-none" viewBox="0 0 12 12" fill="none">
+                  <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </label>
               <button
                 onClick={onLogout}
                 className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm cursor-pointer"

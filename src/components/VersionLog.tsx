@@ -9,9 +9,18 @@ interface VersionEntry {
 
 const VERSION_LOG: VersionEntry[] = [
   {
+    version: '1.5.1',
+    date: 'July 5, 2026',
+    isLatest: true,
+    changes: [
+      { category: 'Fix', text: 'Restored the currency picker in the header — currency is configurable again (GBP default, with 15+ currencies)' },
+      { category: 'Fix', text: 'Upcoming & Regular date displays no longer shift back a day in timezones behind UTC (Today / Overdue / This Week grouping is now correct)' },
+      { category: 'Performance', text: 'Removed dead recurring-session tracking code for a leaner store' },
+    ],
+  },
+  {
     version: '1.5.0',
     date: 'April 29, 2026',
-    isLatest: true,
     changes: [
       { category: 'UX', text: 'Default currency is now GBP (£) for new users (still configurable from the header)' },
       { category: 'Fix', text: 'Dashboard Avg Income now excludes internal pot/goal draw transactions' },

@@ -3,6 +3,7 @@ import { Plus, Trash2, Pencil, X, CheckCircle2, Clock, AlertCircle, CalendarOff 
 import { useAppStore } from '../store/useAppStore';
 import { useCurrency } from '../hooks/useCurrency';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
+import { parseLocalDate } from '../lib/recurrence';
 import type { UpcomingItem } from '../types';
 import { PageContainer } from './ui/PageContainer';
 import { PageHeader } from './ui/PageHeader';
@@ -14,9 +15,16 @@ import { ClearableDateField } from './ui/ClearableDateField';
 function daysFromNow(dateStr: string): number {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
+  const target = parseLocalDate(dateStr);
+  if (!target) return Number.POSITIVE_INFINITY;
   target.setHours(0, 0, 0, 0);
   return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Format a local YYYY-MM-DD without UTC day-shifting.
+function formatLocalDate(dateStr: string, opts: Intl.DateTimeFormatOptions): string {
+  const d = parseLocalDate(dateStr);
+  return d ? d.toLocaleDateString('en-US', opts) : dateStr;
 }
 
 function getGroup(item: UpcomingItem): string {
@@ -196,8 +204,8 @@ export function UpcomingSpendingPage() {
                           <p className="text-xs text-gray-400 mt-0.5">
                             {item.category}
                             {item.dueDate
-                              ? ` · ${new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${
-                                  days === 0 ? ' · Today' : days !== null && days > 0 ? ` · ${days}d away` : days !== null ? ` · ${Math.abs(days)}d ago` : ''
+                              ? ` · ${formatLocalDate(item.dueDate, { month: 'short', day: 'numeric' })}${
+                                  days === 0 ? ' · Today' : days !== null && days > 0 ? ` · ${days}d away` : days !== null && days < 0 ? ` · ${Math.abs(days)}d ago` : ''
                                 }`
                               : ' · No date set'}
                           </p>
@@ -254,7 +262,7 @@ export function UpcomingSpendingPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-500 text-sm truncate line-through">{item.name}</p>
                         <p className="text-xs text-gray-400">
-                          {item.category}{item.dueDate ? ` · ${new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                          {item.category}{item.dueDate ? ` · ${formatLocalDate(item.dueDate, { month: 'short', day: 'numeric' })}` : ''}
                         </p>
                       </div>
                       <span className="font-semibold text-sm text-gray-400">{fmt(item.amount)}</span>
