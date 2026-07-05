@@ -225,9 +225,11 @@ export function Dashboard() {
 
     transactions.forEach((t) => {
       const k = monthKey(new Date(t.date));
-      txMonths.add(k);
-      
+
       if (last3Keys.includes(k)) {
+        // Only count active months within the 3-month window so averages
+        // divide the windowed sum by a matching windowed month count.
+        txMonths.add(k);
         if (isDashboardIncome(t)) {
           totalHistoryIncome += t.amount;
         } else if (isDashboardExpense(t)) {

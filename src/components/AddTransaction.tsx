@@ -49,6 +49,13 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
   const [potId, setPotId] = useState(initialData?.potId ?? '');
 
   const categories = CATEGORIES_BY_TRANSACTION_TYPE[type];
+  // When editing, preserve a legacy/custom category that isn't in the standard
+  // list — otherwise the <select> has no matching option and submit would
+  // silently reset it to categories[0].
+  const optionCategories =
+    isEdit && category && !categories.includes(category)
+      ? [category, ...categories]
+      : categories;
   const showPotSelector = (type === 'income' || type === 'expense') && pots.length > 0;
 
   function handleSubmit(e: React.FormEvent) {
@@ -138,7 +145,7 @@ export function AddTransaction({ onClose, initialData }: AddTransactionProps) {
               onChange={(e) => setCategory(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
             >
-              {categories.map((c) => (
+              {optionCategories.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>

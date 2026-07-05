@@ -13,6 +13,8 @@ const VERSION_LOG: VersionEntry[] = [
     date: 'July 5, 2026',
     isLatest: true,
     changes: [
+      { category: 'Fix', text: 'Dashboard averages were understated: the 3-month income/expense totals were divided by your all-time month count instead of the 3-month window (e.g. ~4× too low with a year of data)' },
+      { category: 'Fix', text: 'Editing a transaction whose category was no longer in the standard list (e.g. legacy "Pot Deposit", "Balance Adjustment") silently reset it to the first category — the original category is now preserved' },
       { category: 'Fix', text: 'Restored the currency picker in the header — currency is configurable again (GBP default, with 15+ currencies)' },
       { category: 'Fix', text: 'Upcoming & Regular date displays no longer shift back a day in timezones behind UTC (Today / Overdue / This Week grouping is now correct)' },
       { category: 'Performance', text: 'Removed dead recurring-session tracking code for a leaner store' },
